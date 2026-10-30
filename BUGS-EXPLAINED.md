@@ -260,9 +260,9 @@ can log in without real email or SMS. But one setting could switch that on in
 production too, which would make the code pointless.
 **Fixed, then undone on purpose (30 Oct):** the team chose to go back to the
 original behaviour so the hosted demo can be used without an email service.
-The live site shows the code on screen when that setting is on. This means
+The code now always appears on the login screen, on the live site too. This means
 anyone with a password can log in, and the server prints a warning at
-start-up while it's on.
+start-up. One setting (`OTP_DEV_EXPOSE=false`) can switch it off again.
 
 ### 35. ✅ You could log in without the OTP code (#39)
 Typing just the password was enough to use the merchant API. The second step

@@ -62,7 +62,7 @@ first.
 | api | `WEBHOOK_SECRET_ENCRYPTION_KEY` | only outside dev; a dev key is used otherwise |
 | api | `ACQUIRER_CALLBACK_SIGNING_SECRET`, `NODE_ENV` | `.env.docker` (`env_file`) |
 | api, settlement | `SETTLEMENT_INTERNAL_TOKEN` (must match) | `environment:`; defaults to `dev-token` — set a real one when hosted |
-| api | `OTP_DEV_EXPOSE`, optional `SMTP_URL` / `OTP_FROM_EMAIL` | Original OTP behaviour: `OTP_DEV_EXPOSE` (default on outside production) returns the code to the login screen; in production it is off unless set, and with it on a password alone signs in (the API logs a warning at boot). `SMTP_URL` additionally emails the code. Local: run Mailpit (`docker run -d -p 1025:1025 -p 8025:8025 axllent/mailpit:v1.20.4`), set `SMTP_URL=smtp://localhost:1025`, read codes at http://localhost:8025 |
+| api | `OTP_DEV_EXPOSE`, optional `SMTP_URL` / `OTP_FROM_EMAIL` | `OTP_DEV_EXPOSE` (default **on in every environment**) returns the code to the login screen, so a password alone signs in; the API logs a warning at boot in production. `OTP_DEV_EXPOSE=false` turns it off. `SMTP_URL` additionally emails the code. Local: run Mailpit (`docker run -d -p 1025:1025 -p 8025:8025 axllent/mailpit:v1.20.4`), set `SMTP_URL=smtp://localhost:1025`, read codes at http://localhost:8025 |
 | settlement | `DATABASE_URL` | `environment:` |
 | reporting | `DATABASE_URL` | `environment:`; runs `worker` by default |
 

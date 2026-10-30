@@ -22,7 +22,7 @@ test("production still refuses to boot without an explicit webhook key", () => {
   );
 });
 
-test("OTP_DEV_EXPOSE: off by default in production, honoured when set (original behaviour, #71)", () => {
+test("login codes are shown on screen by default everywhere; OTP_DEV_EXPOSE=false turns it off (#71)", () => {
   const prod = loadConfig({
     DATABASE_URL: "postgres://localhost/x",
     NODE_ENV: "production",
@@ -41,6 +41,7 @@ test("OTP_DEV_EXPOSE: off by default in production, honoured when set (original 
     ACQUIRER_CALLBACK_SIGNING_SECRET: "s",
     WEBHOOK_SECRET_ENCRYPTION_KEY: "Zmlsc3BheS1kZXYtb25seS13ZWJob29rLWtleS0zMmI=",
   };
-  assert.equal(loadConfig(prodDefault).otpDevExpose, false);
+  assert.equal(loadConfig(prodDefault).otpDevExpose, true);
+  assert.equal(loadConfig({ ...prodDefault, OTP_DEV_EXPOSE: "false" }).otpDevExpose, false);
   assert.equal(loadConfig({ DATABASE_URL: "postgres://localhost/x", NODE_ENV: "development" }).otpDevExpose, true);
 });

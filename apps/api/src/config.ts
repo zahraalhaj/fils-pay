@@ -27,7 +27,7 @@ export interface Config {
   otpCodeLength: number;
   otpMaxAttempts: number;
   /** Return the OTP in the login response so the UI shows it on screen
-   *  (OTP_DEV_EXPOSE; on by default outside production). */
+   *  (OTP_DEV_EXPOSE; on by default in every environment). */
   otpDevExpose: boolean;
   /** Optional SMTP connection URL for OTP email (e.g. smtp://user:pass@host:587).
    *  Unset: the code is shown on screen when OTP_DEV_EXPOSE is on, and is
@@ -230,10 +230,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     otpTtlMinutes: parseIntEnv(env.OTP_TTL_MINUTES, 5),
     otpCodeLength: parseIntEnv(env.OTP_CODE_LENGTH, 6),
     otpMaxAttempts: parseIntEnv(env.OTP_MAX_ATTEMPTS, 5),
-    // Original challenge behaviour, restored by team decision (BUGS.md #71):
-    // on by default outside production, and OTP_DEV_EXPOSE=true also shows
-    // the code in production. index.ts warns at boot when it does.
-    otpDevExpose: parseBoolEnv(env.OTP_DEV_EXPOSE, nodeEnv !== "production"),
+    // Team decision (BUGS.md #71): the code is always shown on screen,
+    // production included, unless OTP_DEV_EXPOSE=false. index.ts warns at
+    // boot when it is on in production.
+    otpDevExpose: parseBoolEnv(env.OTP_DEV_EXPOSE, true),
     smtpUrl,
     otpFromEmail: env.OTP_FROM_EMAIL || "FilsPay <no-reply@filspay.example>",
     corsAllowedOrigins: env.CORS_ALLOWED_ORIGINS
