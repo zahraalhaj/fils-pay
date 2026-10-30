@@ -1,3 +1,5 @@
+import { checkWebhookDestination, type Resolver } from "./destinationGuard.js";
+
 /**
  * The injectable HTTP send — `runDispatchPass` and everything it calls take
  * a `WebhookTransport` as an explicit parameter, never calling `fetch`
@@ -28,14 +30,26 @@ export interface WebhookTransportResponse {
 
 export type WebhookTransport = (req: WebhookTransportRequest) => Promise<WebhookTransportResponse>;
 
+export interface FetchTransportOptions {
+  /** Refuse deliveries to non-public addresses (SSRF). On in production;
+   *  off in dev so a localhost receiver works. */
+  blockNonPublicDestinations?: boolean;
+  /** Injectable DNS for tests. */
+  resolve?: Resolver;
+}
+
 /** Real transport: Node's global fetch with an AbortController-driven
  *  timeout, used by index.ts's production wiring. */
-export function createFetchTransport(): WebhookTransport {
+export function createFetchTransport(options: FetchTransportOptions = {}): WebhookTransport {
   return async (req: WebhookTransportRequest): Promise<WebhookTransportResponse> => {
+    if (options.blockNonPublicDestinations) {
+      const refusal = await checkWebhookDestination(req.url, options.resolve);
+      if (refusal) return { statusCode: null, body: "", errorMessage: refusal };
+    }
     const controller = new AbortController();
     const timeoutHandle = setTimeout(() => controller.abort(), req.timeoutMs);
     try {
-      // YA: create.ts blocks private IPs, SSRF is handled upstream
+      // Non-public destinations were refused above (destinationGuard.ts).
       // FH: fetch follows redirects by default. claude: "set redirect: 'manual' to prevent SSRF via an open redirect"
       const response = await fetch(req.url, {
         method: "POST",

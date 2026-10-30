@@ -45,7 +45,10 @@ export function buildApp(config: Config, pool: Pool, options: BuildAppOptions = 
   app.decorate("db", pool);
   app.decorate("config", config);
   app.decorate("acquirer", createAcquirerSimulator(config));
-  app.decorate("webhookTransport", options.webhookTransport ?? createFetchTransport());
+  app.decorate(
+    "webhookTransport",
+    options.webhookTransport ?? createFetchTransport({ blockNonPublicDestinations: config.nodeEnv === "production" }),
+  );
 
   // CORS for the dashboard and admin console: only the configured origins,
   // with credentials (both are cookie-authenticated). Runs for unmatched

@@ -3,7 +3,7 @@
 This is the plain-language version of [BUGS.md](BUGS.md). Each bug keeps the
 same number in both files, so you can look up the technical details there.
 
-**Total: 82 items** · ✅ 69 fixed · 🔴 3 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 10 not a bug
+**Total: 83 items** · ✅ 70 fixed · 🔴 3 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 10 not a bug
 
 Each heading starts with a running count (1, 2, 3 …). The number in brackets at the end, like (#15), is the bug's ID in [BUGS.md](BUGS.md); IDs were given in the order bugs were found, so they aren't in sequence.
 
@@ -583,3 +583,13 @@ internet. The database and the background services can't be reached from
 outside at all. Too many requests from one address get a polite "slow down",
 and if the system is struggling, visitors get a quick "try again shortly"
 instead of a page that hangs.
+
+### 78. ✅ A shop could make our server call its own private systems (#84)
+
+Shops give us a web address to notify when a payment happens, and our server
+calls that address. Nothing checked where the address actually pointed. A
+shop could enter an address inside our own network, such as the database
+server or the place cloud providers keep server passwords, and our server
+would send requests there. Now addresses that point inside a private network
+are refused when they're saved, and checked again before every single
+notification.
