@@ -195,7 +195,7 @@ export function MerchantListPage() {
               <td>{merchant.status}</td>
               <td>{merchant.onboardingStatus}</td>
               <td>{merchant.kycPassed ? "passed" : "not passed"}</td>
-              <td>{(merchant.mdrBps / 100).toFixed(2)}%</td>
+              <td>{(merchant.effectiveMdrBps / 100).toFixed(2)}%</td>
               <td>{merchant.testMode ? "test" : "live"}</td>
               <td>{new Date(merchant.createdAt).toLocaleDateString()}</td>
             </tr>

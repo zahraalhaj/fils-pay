@@ -28,6 +28,14 @@ export async function rotateApiKeyAsAdmin(
       throw new ConflictError("api_key_already_revoked");
     }
 
+    // Rotation retires the old key: it keeps working for a 24 h overlap so the
+    // merchant can switch, then stops (revoke_after is enforced in
+    // verifyApiKey). It used to stay valid forever (#47).
+    const retired = await client.query<{ revoke_after: Date }>(
+      `UPDATE api_keys SET revoke_after = now() + interval '24 hours' WHERE id = $1 RETURNING revoke_after`,
+      [input.apiKeyId],
+    );
+
     const issued = await issueApiKeyInTx(client, config, {
       merchantId: input.merchantId,
       createdByAdminUserId: input.adminUserId,
@@ -40,7 +48,11 @@ export async function rotateApiKeyAsAdmin(
       action: "api_key_rotate",
       targetType: "api_key",
       targetId: input.apiKeyId,
-      metadata: { merchantId: input.merchantId, newKeyId: issued.id },
+      metadata: {
+        merchantId: input.merchantId,
+        newKeyId: issued.id,
+        oldKeyRevokeAfter: retired.rows[0]?.revoke_after.toISOString(),
+      },
     });
 
     return { ...issued, previousKeyId: input.apiKeyId };

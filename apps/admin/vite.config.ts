@@ -7,8 +7,8 @@ export default defineConfig({
     // apps/web already owns 5173.
     // 5174 clashes with storybook on my machine — am
     port: 5174,
-    // The API registers no CORS handler; run with VITE_ADMIN_API_BASE_URL= so
-    // requests stay same-origin and go through this proxy.
+    // Optional: run with VITE_ADMIN_API_BASE_URL= to stay same-origin through this proxy.
+    // Otherwise the API's CORS allowlist (CORS_ALLOWED_ORIGINS) admits this port.
     proxy: { "/v1": "http://localhost:3000" },
   },
 });

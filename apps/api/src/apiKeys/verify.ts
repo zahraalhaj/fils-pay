@@ -12,11 +12,16 @@ export interface ApiKeyContext {
 /** For later routes that should accept API-key auth instead of (or in
  *  addition to) a browser session, e.g. merchant-facing (non-dashboard) API
  *  endpoints. */
-// MK: revoked_at IS NULL is in the query, so a revoke is instant
 export async function verifyApiKey(pool: Pool, rawKey: string): Promise<ApiKeyContext | null> {
   const keyHash = sha256Hex(rawKey);
   const result = await pool.query<{ id: string; merchant_id: string }>(
-    `SELECT id, merchant_id FROM api_keys WHERE key_hash = $1 AND revoked_at IS NULL`,
+    // A suspended/closed merchant's keys stop working: settlement only pays
+    // out active merchants, so a payment taken now would never settle (#61).
+    `SELECT ak.id, ak.merchant_id
+       FROM api_keys ak
+       JOIN merchants m ON m.id = ak.merchant_id
+      WHERE ak.key_hash = $1 AND ak.revoked_at IS NULL AND m.status = 'active'
+        AND (ak.revoke_after IS NULL OR ak.revoke_after > now())`,
     [keyHash],
   );
   const row = result.rows[0];

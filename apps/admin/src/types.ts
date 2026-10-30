@@ -59,6 +59,8 @@ export interface AdminMerchantSummary {
   onboardingStatus: MerchantOnboardingStatus;
   kycPassed: boolean;
   mdrBps: number;
+  /** Rate actually billed today (fee schedule in effect, else mdrBps). */
+  effectiveMdrBps: number;
   testMode: boolean;
   createdAt: string;
 }

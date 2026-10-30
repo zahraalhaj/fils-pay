@@ -54,6 +54,11 @@ export interface CaptureInput {
    *  call captureTransaction() directly. routes/transactions.ts's capture
    *  route always supplies a real session/API-key actor. */
   actor: { type: "merchant_session" | "merchant_api_key" | "system"; id: string };
+  /** Payment-link checkout only: the link and the reservation this attempt
+   *  holds. Capture locks the link, refuses if the reservation was lost, and
+   *  marks the link paid in this same transaction — so a link can never be
+   *  paid twice. */
+  paymentLink?: { linkId: string; reservationId: string };
 }
 
 export interface CaptureResult {
@@ -89,7 +94,10 @@ export async function captureTransaction(
   acquirer: AcquirerSimulator,
   input: CaptureInput,
 ): Promise<CaptureResult> {
-  const requestHash = hashRequest({ amountFils: input.amountFils ?? null });
+  // Keys are scoped per merchant + endpoint, not per transaction, so the
+  // transaction id must be part of the hash: the same key reused on another
+  // transaction is a conflict (422), not a replay of the first capture.
+  const requestHash = hashRequest({ transactionId: input.transactionId, amountFils: input.amountFils ?? null });
 
   return withTransaction(pool, async (client) => {
     const claim = await claimIdempotencyKey(client, {
@@ -150,8 +158,8 @@ export async function captureTransaction(
       return { statusCode: 422, body };
     }
 
-    const merchantResult = await client.query<{ mdr_bps: number }>(
-      `SELECT mdr_bps FROM merchants WHERE id = $1`,
+    const merchantResult = await client.query<{ mdr_bps: number; negotiated_discount_bps: number }>(
+      `SELECT mdr_bps, negotiated_discount_bps FROM merchants WHERE id = $1`,
       [input.merchantId],
     );
     const merchant = merchantResult.rows[0];
@@ -164,6 +172,18 @@ export async function captureTransaction(
     // applies yet — the ordinary case for every merchant that has never had
     // a negotiated rate change recorded. Resolved at the instant of capture,
     // inside the same locked transaction that computes and journals the fee.
+    if (input.paymentLink) {
+      const held = await client.query(
+        `SELECT id FROM payment_links WHERE id = $1 AND status = 'reserved' AND reservation_id = $2 FOR UPDATE`,
+        [input.paymentLink.linkId, input.paymentLink.reservationId],
+      );
+      if (held.rowCount === 0) {
+        const body = { error: "payment_link_reservation_lost" };
+        await completeIdempotencyKey(client, claim.row.id, { statusCode: 409, body });
+        return { statusCode: 409, body };
+      }
+    }
+
     const effectiveMdrBps = await getEffectiveMdrBps(client, input.merchantId, new Date(), merchant.mdr_bps);
     const volumeTierBonusBps = await getVolumeTierBonusBps(client);
 
@@ -230,11 +250,40 @@ export async function captureTransaction(
       );
     }
 
+    // Negotiated discount: a rebate off the fee just charged, in the same
+    // transaction as the capture, so every capture path (the API route and
+    // payment links alike) gets it and it can't be lost if a later step
+    // fails. Same ledger description as applyCaptureDiscountAdjustment, whose
+    // per-event count guard therefore treats this capture as already done.
+    const discountFils =
+      feeFils > 0 && merchant.negotiated_discount_bps > 0
+        ? applyRateFils(feeFils, merchant.negotiated_discount_bps)
+        : ZERO_FILS;
+    if (discountFils > 0) {
+      await client.query(
+        `INSERT INTO ledger_entries
+           (entry_group_id, merchant_id, transaction_id, account_id, direction, amount_fils, occurred_at, description)
+         VALUES
+           ($1, $2, $3, 'platform_fee_revenue', 'debit',  $4, now(), 'capture: negotiated discount adjustment'),
+           ($1, $2, $3, 'merchant_payable',     'credit', $4, now(), 'capture: negotiated discount adjustment')`,
+        [randomUUID(), input.merchantId, txn.id, discountFils],
+      );
+    }
+
     // Hold lifecycle: released exactly when nothing remains outstanding.
     if (newStatus === "captured") {
       await client.query(`UPDATE holds SET status = 'released' WHERE transaction_id = $1 AND status = 'active'`, [
         txn.id,
       ]);
+    }
+
+    if (input.paymentLink) {
+      await client.query(
+        `UPDATE payment_links
+            SET status = 'paid', paid_at = now(), transaction_id = $2, reserved_at = NULL, reservation_id = NULL
+          WHERE id = $1`,
+        [input.paymentLink.linkId, txn.id],
+      );
     }
 
     await enqueueEvent(client, {
@@ -255,7 +304,7 @@ export async function captureTransaction(
       eventType: newStatus === "captured" ? "captured" : "partially_captured",
       amountFils: requestedAmount,
       actor: input.actor,
-      metadata: { feeFils, acquirerReference: acquirerResult.acquirerReference },
+      metadata: { feeFils, discountFils, acquirerReference: acquirerResult.acquirerReference },
     });
 
     const body = serializeTransaction(updatedTxn);

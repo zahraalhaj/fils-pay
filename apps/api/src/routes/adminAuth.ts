@@ -88,7 +88,7 @@ export async function adminAuthRoutes(app: FastifyInstance): Promise<void> {
       return { code: challenge.code, expiresAt: challenge.expiresAt, rawToken: session.rawToken };
     });
 
-    sendAdminOtpCode(request.log, app.config, { adminUserId: user.id, email: user.email }, code);
+    await sendAdminOtpCode(request.log, app.config, { adminUserId: user.id, email: user.email }, code);
 
     reply.setCookie(app.config.adminCookieName, rawToken, {
       httpOnly: true,
@@ -144,18 +144,20 @@ export async function adminAuthRoutes(app: FastifyInstance): Promise<void> {
       throw new GoneError("otp_expired");
     }
 
-    // admin path doesn't have the merchant race, the challenge row is read FOR UPDATE — MK
-    if (challenge.attempt_count >= challenge.max_attempts) {
+    // Reserve an attempt atomically before checking the code (the row is
+    // not read FOR UPDATE, so read-then-increment let parallel guesses through).
+    const reserved = await app.db.query(
+      `UPDATE admin_otp_challenges SET attempt_count = attempt_count + 1
+        WHERE id = $1 AND attempt_count < max_attempts`,
+      [challenge.id],
+    );
+    if (reserved.rowCount === 0) {
       await revokeAdminSession(app.db, pending.adminSessionId);
       throw new TooManyRequestsError("too_many_attempts");
     }
 
     const matches = verifyOtpCode(code, challenge.code_salt, challenge.code_hash);
     if (!matches) {
-      await app.db.query(
-        `UPDATE admin_otp_challenges SET attempt_count = attempt_count + 1 WHERE id = $1`,
-        [challenge.id],
-      );
       throw new UnauthorizedError("invalid_code");
     }
 

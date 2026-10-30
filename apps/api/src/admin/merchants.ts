@@ -16,6 +16,9 @@ export interface AdminMerchantSummary {
   onboardingStatus: string;
   kycPassed: boolean;
   mdrBps: number;
+  /** The rate actually billed today: the newest fee schedule in effect,
+   *  else mdrBps — resolved the same way capture does (#69). */
+  effectiveMdrBps: number;
   testMode: boolean;
   createdAt: Date;
 }
@@ -27,9 +30,15 @@ interface MerchantRow {
   onboarding_status: string;
   kyc_passed: boolean;
   mdr_bps: number;
+  effective_mdr_bps: number;
   test_mode: boolean;
   created_at: Date;
 }
+
+/** Same resolution as fees/feeSchedule.ts getEffectiveMdrBps, for merchants `m`. */
+const EFFECTIVE_MDR_BPS_SQL = `COALESCE((SELECT fs.mdr_bps FROM fee_schedules fs
+                   WHERE fs.merchant_id = m.id AND fs.effective_from <= now()
+                   ORDER BY fs.effective_from DESC, fs.created_at DESC LIMIT 1), m.mdr_bps)`;
 
 function toSummary(row: MerchantRow): AdminMerchantSummary {
   return {
@@ -39,6 +48,7 @@ function toSummary(row: MerchantRow): AdminMerchantSummary {
     onboardingStatus: row.onboarding_status,
     kycPassed: row.kyc_passed,
     mdrBps: row.mdr_bps,
+    effectiveMdrBps: row.effective_mdr_bps,
     testMode: row.test_mode,
     createdAt: row.created_at,
   };
@@ -117,7 +127,8 @@ export async function listMerchantsForAdmin(
 
   const result = await pool.query<MerchantRow & { created_at_text: string }>(
     `SELECT m.id, m.display_name, m.status, m.onboarding_status, m.kyc_passed,
-            m.mdr_bps, m.test_mode, m.created_at, m.created_at::text AS created_at_text
+            m.mdr_bps, ${EFFECTIVE_MDR_BPS_SQL} AS effective_mdr_bps,
+            m.test_mode, m.created_at, m.created_at::text AS created_at_text
        FROM merchants m
        LEFT JOIN merchant_business_profiles bp ON bp.merchant_id = m.id
       WHERE ($1::text IS NULL
@@ -223,8 +234,9 @@ export async function getMerchantDetailForAdmin(
   merchantId: string,
 ): Promise<AdminMerchantDetail | null> {
   const merchantResult = await pool.query<MerchantRow>(
-    `SELECT id, display_name, status, onboarding_status, kyc_passed, mdr_bps, test_mode, created_at
-       FROM merchants WHERE id = $1`,
+    `SELECT m.id, m.display_name, m.status, m.onboarding_status, m.kyc_passed, m.mdr_bps,
+            ${EFFECTIVE_MDR_BPS_SQL} AS effective_mdr_bps, m.test_mode, m.created_at
+       FROM merchants m WHERE m.id = $1`,
     [merchantId],
   );
   const merchantRow = merchantResult.rows[0];

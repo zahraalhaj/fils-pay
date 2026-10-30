@@ -20,17 +20,35 @@ export interface ReportingConsumerHandle {
  * identical shape to apps/api/src/webhooks/dispatcher.ts's
  * `startWebhookDispatcher`.
  */
+/** Consecutive failed passes before the worker isolates the bad event(s). */
+const FAILED_PASSES_BEFORE_ISOLATING = 5;
+
 export function startReportingConsumer(pool: Pool, config: ReportingConfig): ReportingConsumerHandle {
   let running = false;
   let stopped = false;
+  let consecutiveFailures = 0;
 
   const triggerPass = (): void => {
     if (running || stopped) return;
     running = true;
-    runConsumerPass(pool, config)
+    // A failure can be transient (database restart), so retry the normal
+    // all-or-nothing pass a few times first. If it keeps failing, it is
+    // almost certainly one malformed event: apply events one by one and
+    // dead-letter whichever still fails, instead of stalling forever.
+    const isolateFailures = consecutiveFailures >= FAILED_PASSES_BEFORE_ISOLATING;
+    runConsumerPass(pool, config, { isolateFailures })
+      .then((result) => {
+        consecutiveFailures = 0;
+        if (result.deadLetteredCount) {
+          console.error(
+            `[reporting/consumer] ${result.deadLetteredCount} event(s) moved to reporting_dead_letters`,
+          );
+        }
+      })
       .catch((err: unknown) => {
         // A thrown error from one pass must never crash the listener or the
         // process — the next NOTIFY or poll tick simply tries again.
+        consecutiveFailures++;
         console.error("[reporting/consumer] consumer pass failed", err);
       })
       .finally(() => {

@@ -20,6 +20,8 @@ interface ImportIdParams {
 interface CreateImportBody {
   csvContent?: unknown;
   originalFilename?: unknown;
+  /** Set to true to apply rows identical to an earlier import (otherwise 409). */
+  allowDuplicate?: unknown;
 }
 
 interface ListQuery {
@@ -45,16 +47,17 @@ export async function adminAdjustmentImportRoutes(app: FastifyInstance): Promise
       const adminAuth = request.adminAuth;
       if (!adminAuth) throw new UnauthorizedError("unauthenticated");
 
-      const { csvContent, originalFilename } = request.body ?? {};
+      const { csvContent, originalFilename, allowDuplicate } = request.body ?? {};
       if (typeof csvContent !== "string" || csvContent.trim() === "") {
         throw new BadRequestError("invalid_request", "csvContent is required and must be a non-empty string");
       }
       if (originalFilename !== undefined && typeof originalFilename !== "string") {
         throw new BadRequestError("invalid_request", "originalFilename, if given, must be a string");
       }
+      if (allowDuplicate !== undefined && typeof allowDuplicate !== "boolean") {
+        throw new BadRequestError("invalid_request", "allowDuplicate, if given, must be a boolean");
+      }
 
-      // am: no dry run and no idempotency key — uploading the same csv twice posts it twice
-      // MK: finance checks the spreadsheet before uploading. fine for now
       // FH: parseAdjustmentCsv handles 3dp BD amounts correctly (4.750 -> 4750 fils), Claude checked
       const rows = parseAdjustmentCsv(csvContent);
       for (const row of rows) {
@@ -67,6 +70,7 @@ export async function adminAdjustmentImportRoutes(app: FastifyInstance): Promise
         adminUserId: adminAuth.adminUserId,
         originalFilename: originalFilename ?? "pasted.csv",
         rows,
+        allowDuplicate,
       });
 
       reply.code(201).send(result);

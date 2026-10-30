@@ -18,10 +18,16 @@ test("expiryReferenceTime: empty string -> the server's own clock", () => {
   assert.ok(Math.abs(resolved.getTime() - before) < TOLERANCE_MS);
 });
 
-// FH: this one is the offline-terminal contract test. MK said don't delete
-test("expiryReferenceTime: a valid ISO-8601 string round-trips exactly", () => {
+test("expiryReferenceTime: a recent submittedAt (within the grace window) round-trips exactly", () => {
+  const now = new Date("2026-03-14T09:32:00.000Z");
   const iso = "2026-03-14T09:30:00.000Z";
-  assert.equal(expiryReferenceTime(iso).toISOString(), iso);
+  assert.equal(expiryReferenceTime(iso, now).toISOString(), iso);
+});
+
+test("expiryReferenceTime: an old or future submittedAt is not trusted (FP-187)", () => {
+  const now = new Date("2026-10-30T12:00:00.000Z");
+  assert.equal(expiryReferenceTime("2026-03-14T09:30:00.000Z", now).toISOString(), now.toISOString());
+  assert.equal(expiryReferenceTime("2026-10-30T12:10:00.000Z", now).toISOString(), now.toISOString());
 });
 
 test("expiryReferenceTime: an unparseable value -> the server's own clock", () => {

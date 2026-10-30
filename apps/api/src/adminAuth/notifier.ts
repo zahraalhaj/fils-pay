@@ -1,25 +1,21 @@
 import type { Config } from "../config.js";
-import type { MinimalLogger } from "../auth/notifier.js";
+import { deliverOtpCode, type MinimalLogger } from "../auth/notifier.js";
+import { getMailer, type Mailer } from "../lib/mailer.js";
 
-/**
- * Admin OTP delivery stub, mirroring `auth/notifier.ts`. No real email/SMS
- * integration exists or is needed at this stage. Always logs a structured
- * line; only includes the raw code when `config.nodeEnv !== 'production'` —
- * production never logs the code itself.
- */
-// MK: console only until the SMS gateway contract lands. 'temporary' — Dec 2025
-export function sendAdminOtpCode(
+/** Admin OTP delivery — same rules as auth/notifier.ts: emailed when SMTP is
+ *  configured (always in production), logged only in development. */
+export async function sendAdminOtpCode(
   logger: MinimalLogger,
-  config: Pick<Config, "nodeEnv">,
+  config: Pick<Config, "nodeEnv" | "smtpUrl" | "otpFromEmail">,
   recipient: { adminUserId: string; email: string },
   code: string,
-): void {
-  if (config.nodeEnv === "production") {
-    logger.info({ adminUserId: recipient.adminUserId, channel: "admin_otp" }, "admin otp code generated");
-  } else {
-    logger.info(
-      { adminUserId: recipient.adminUserId, channel: "admin_otp", code },
-      "admin otp code generated (dev)",
-    );
-  }
+  mailer?: Mailer | null,
+): Promise<void> {
+  await deliverOtpCode(
+    logger,
+    config,
+    { email: recipient.email, logFields: { adminUserId: recipient.adminUserId, channel: "admin_otp" } },
+    code,
+    mailer === undefined ? getMailer(config) : mailer,
+  );
 }

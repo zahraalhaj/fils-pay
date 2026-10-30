@@ -17,10 +17,13 @@ test("signature header format is t=<seconds>,v1=<hex>", () => {
   assert.match(signature, /^t=1700000000,v1=[0-9a-f]{64}$/);
 });
 
-test("canonical serialization: key order in the payload object does not change the signature", () => {
-  const a = signPayload({ a: 1, b: 2, c: { x: 1, y: 2 } }, SECRET, 1_700_000_000);
-  const b = signPayload({ c: { y: 2, x: 1 }, b: 2, a: 1 }, SECRET, 1_700_000_000);
-  assert.equal(a.signature, b.signature);
+test("the signature covers the exact body sent, in its key order", () => {
+  const signed = signPayload({ merchantId: "m", amountFils: 1 }, SECRET, 1_700_000_000);
+  assert.equal(signed.body, '{"merchantId":"m","amountFils":1}');
+  assert.equal(verifySignature(signed.body, signed.signature, SECRET, { now: 1_700_000_000 }).valid, true);
+  // The same fields re-ordered are different bytes, so they don't verify.
+  const reordered = '{"amountFils":1,"merchantId":"m"}';
+  assert.equal(verifySignature(reordered, signed.signature, SECRET, { now: 1_700_000_000 }).valid, false);
 });
 
 test("a different payload produces a different signature", () => {

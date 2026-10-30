@@ -43,7 +43,7 @@ func TestRecordPlatformProcessedVolume_SmallValuesExact(t *testing.T) {
 		}
 	}
 
-	var got int32
+	var got int64
 	err = tx.QueryRow(ctx, `SELECT total_processed_fils FROM platform_stats WHERE id = 1`).Scan(&got)
 	if err != nil {
 		t.Fatalf("read back total: %v", err)
@@ -55,7 +55,7 @@ func TestRecordPlatformProcessedVolume_SmallValuesExact(t *testing.T) {
 
 // TestVolumeTierMdrBonusBps_BelowAndAtThreshold proves the tier comparison
 // is correct on both sides of the threshold.
-// MK: no test above the threshold, or near int32 max. TODO
+
 func TestVolumeTierMdrBonusBps_BelowAndAtThreshold(t *testing.T) {
 	if got := VolumeTierMdrBonusBps(0); got != 0 {
 		t.Errorf("zero volume: got %d, want 0", got)

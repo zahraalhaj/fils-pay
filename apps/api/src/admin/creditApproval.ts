@@ -1,14 +1,18 @@
 import { ConflictError } from "../lib/errors.js";
 
-/** An operator on one side of a credit's two-person control. */
 export interface CreditActor {
   adminUserId: string;
   displayName: string;
 }
 
-/** Two-person control: the operator who approves a credit must not be the one who requested it. */
+/**
+ * Second-approver rule: the approver must be a different admin user. Compared
+ * by admin user id (HANDOVER) — display names aren't unique and can be edited,
+ * so comparing them let an admin approve their own credit after a rename, and
+ * blocked two different admins who happened to share a name.
+ */
 export function assertDistinctApprover(requester: CreditActor, approver: CreditActor): void {
-  if (approver.displayName === requester.displayName) {
+  if (approver.adminUserId === requester.adminUserId) {
     throw new ConflictError("self_approval_forbidden");
   }
 }

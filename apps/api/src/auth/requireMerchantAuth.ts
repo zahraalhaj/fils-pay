@@ -86,6 +86,12 @@ export const requireMerchantAuth: preHandlerHookHandler = async (request: Fastif
   if (impersonationToken) {
     const grant = await lookupImpersonationGrant(request.server.db, impersonationToken);
     if (grant) {
+      // Impersonation is read-only (HANDOVER). Role gates alone don't enforce
+      // that: capture and void only require authentication, so a grant could
+      // move money and be recorded as a merchant_session write.
+      if (request.method !== "GET" && request.method !== "HEAD") {
+        throw new ForbiddenError("forbidden");
+      }
       request.merchantAuth = {
         merchantId: grant.merchantId,
         actorType: "admin_impersonation",

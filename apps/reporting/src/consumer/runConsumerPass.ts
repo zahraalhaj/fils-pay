@@ -39,7 +39,11 @@ export const CONSUMER_NAME = "reporting";
 export async function runConsumerPass(
   pool: Pool,
   config: Pick<ReportingConfig, "consumerBatchLimit">,
-): Promise<{ processedCount: number }> {
+  options: { isolateFailures?: boolean } = {},
+): Promise<{ processedCount: number; deadLetteredCount?: number }> {
+  if (options.isolateFailures) {
+    return runIsolatingPass(pool, config);
+  }
   return withTransaction(pool, async (client) => {
     const cursor = await readCursor(client, CONSUMER_NAME);
 
@@ -67,5 +71,56 @@ export async function runConsumerPass(
     }
 
     return { processedCount: eventsResult.rows.length };
+  });
+}
+
+/**
+ * Fallback the listener uses after repeated failed passes: each event is
+ * applied under its own SAVEPOINT, and one that throws is recorded in
+ * reporting_dead_letters and skipped, so a single malformed event can no
+ * longer stall the worker. The watermark still advances atomically with
+ * every write in the pass.
+ */
+async function runIsolatingPass(
+  pool: Pool,
+  config: Pick<ReportingConfig, "consumerBatchLimit">,
+): Promise<{ processedCount: number; deadLetteredCount: number }> {
+  return withTransaction(pool, async (client) => {
+    const cursor = await readCursor(client, CONSUMER_NAME);
+    const eventsResult = await client.query<OutboxEventRow>(
+      `SELECT id, event_type, aggregate_id, payload, created_at
+         FROM outbox_events
+        WHERE id > $1
+          AND event_type = ANY($2::text[])
+        ORDER BY id ASC
+        LIMIT $3`,
+      [cursor.lastProcessedId.toString(), REPORTING_EVENT_TYPES, config.consumerBatchLimit],
+    );
+
+    let maxId = cursor.lastProcessedId;
+    let deadLetteredCount = 0;
+    for (const row of eventsResult.rows) {
+      await client.query("SAVEPOINT reporting_event");
+      try {
+        await applyEvent(client, row);
+        await client.query("RELEASE SAVEPOINT reporting_event");
+      } catch (err) {
+        await client.query("ROLLBACK TO SAVEPOINT reporting_event");
+        await client.query(
+          `INSERT INTO reporting_dead_letters (outbox_event_id, consumer_name, event_type, error)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (outbox_event_id) DO NOTHING`,
+          [row.id, CONSUMER_NAME, row.event_type, err instanceof Error ? err.message : String(err)],
+        );
+        deadLetteredCount++;
+      }
+      const rowId = BigInt(row.id);
+      if (rowId > maxId) maxId = rowId;
+    }
+
+    if (eventsResult.rows.length > 0) {
+      await advanceCursor(client, CONSUMER_NAME, maxId);
+    }
+    return { processedCount: eventsResult.rows.length - deadLetteredCount, deadLetteredCount };
   });
 }

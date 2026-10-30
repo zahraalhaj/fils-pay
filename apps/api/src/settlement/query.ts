@@ -304,10 +304,12 @@ export async function getReconciliationReport(
       event_type: string;
       amount_fils: string | number;
       fee_fils: string | number | null;
+      discount_fils: string | number;
       fee_reversed_fils: string | number;
     }>(
       `SELECT te.event_type, te.amount_fils,
               (te.metadata->>'feeFils')::bigint AS fee_fils,
+              COALESCE((te.metadata->>'discountFils')::bigint, 0) AS discount_fils,
               COALESCE((te.metadata->>'feeReversedFils')::bigint, 0) AS fee_reversed_fils
          FROM transaction_events te
          JOIN transactions t ON t.id = te.transaction_id
@@ -342,7 +344,9 @@ export async function getReconciliationReport(
     // The fee capture actually posted to the ledger (metadata.feeFils), so
     // pending matches the ledger exactly; estimate only when it's missing.
     const feeFils =
-      row.fee_fils === null ? estimateFeeFils(amountFils, mdrBps, discountBps) : Number(row.fee_fils);
+      row.fee_fils === null
+        ? estimateFeeFils(amountFils, mdrBps, discountBps)
+        : Number(row.fee_fils) - Number(row.discount_fils);
     pendingUnbatchedFils += amountFils - feeFils;
   }
 
@@ -382,8 +386,11 @@ export async function getSettlementSummary(
   const windowEnd = bahrainLocalMidnightUtc(input.to);
 
   const result = await pool.query<SettlementSummaryRow>(
+    // Sum each capture event's own amount (the delta it moved), exactly like
+    // CloseBatch. t.captured_fils is the running total, so summing it once
+    // per event counted multi-capture transactions two or three times.
     `WITH captured AS (
-       SELECT t.id, t.captured_fils
+       SELECT t.id, te.amount_fils
          FROM transactions t
          JOIN transaction_events te ON te.transaction_id = t.id
         WHERE t.merchant_id = $1
@@ -391,7 +398,7 @@ export async function getSettlementSummary(
           AND te.occurred_at >= $2 AND te.occurred_at < $3
      )
      SELECT COUNT(DISTINCT id) AS transaction_count,
-            COALESCE(SUM(captured_fils), 0) AS total_captured_fils
+            COALESCE(SUM(amount_fils), 0) AS total_captured_fils
        FROM captured`,
     [input.merchantId, windowStart, windowEnd],
   );

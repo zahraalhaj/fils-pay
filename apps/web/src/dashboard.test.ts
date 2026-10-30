@@ -51,8 +51,8 @@ test("dash renders absent values as an em dash but keeps zero", () => {
   assert.equal(dash(0), "0");
 });
 
-test("dayStartIso converts a date input to a UTC day boundary", () => {
-  assert.equal(dayStartIso("2026-09-12"), "2026-09-12T00:00:00.000Z");
+test("dayStartIso converts a date input to the Asia/Bahrain day boundary", () => {
+  assert.equal(dayStartIso("2026-09-12"), "2026-09-11T21:00:00.000Z");
   assert.equal(dayStartIso(""), undefined);
 });
 
@@ -63,4 +63,8 @@ test("localDateTimeToIso rejects garbage instead of sending Invalid Date", () =>
   const iso = localDateTimeToIso("2026-09-12T14:30");
   assert.notEqual(iso, null);
   assert.equal(new Date(iso ?? "").getTime(), new Date("2026-09-12T14:30").getTime());
+});
+
+test("bhd formats negative amounts (refund events, reconciliation gaps) instead of throwing", () => {
+  assert.equal(bhd(-4000), "-4.000 BHD");
 });

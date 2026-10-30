@@ -23,6 +23,15 @@ export interface Config {
   otpCodeLength: number;
   otpMaxAttempts: number;
   otpDevExpose: boolean;
+  /** SMTP connection URL for OTP email (e.g. smtp://user:pass@host:587).
+   *  Required in production — without it no one could ever receive a code. */
+  smtpUrl: string | null;
+  /** From address on OTP emails. */
+  otpFromEmail: string;
+  /** Browser origins allowed to call the API with credentials (the merchant
+   *  dashboard and the admin console). CORS_ALLOWED_ORIGINS, comma-separated;
+   *  defaults to the two Vite dev servers outside production, none in it. */
+  corsAllowedOrigins: string[];
 
   argon2MemoryKib: number;
   argon2TimeCost: number;
@@ -150,7 +159,9 @@ function parseBoolEnv(value: string | undefined, fallback: boolean): boolean {
   return value === "true" || value === "1";
 }
 
-const DEV_FALLBACK_WEBHOOK_KEY_B64 = "dGVzdC1rZXktZm9yLWRldi1vbmx5LW5vdC1mb3ItcHJvZA==";
+// Dev/test only, never used when NODE_ENV=production. Must decode to exactly 32 bytes
+// (the previous value decoded to 34, so the API could not boot without an explicit key).
+const DEV_FALLBACK_WEBHOOK_KEY_B64 = "Zmlsc3BheS1kZXYtb25seS13ZWJob29rLWtleS0zMmI=";
 
 const BASE64_RE = /^[A-Za-z0-9+/]+={0,2}$/;
 
@@ -194,6 +205,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error("loadConfig: ACQUIRER_CALLBACK_SIGNING_SECRET is required when NODE_ENV=production");
   }
 
+  const smtpUrl = env.SMTP_URL ? env.SMTP_URL : null;
+  if (nodeEnv === "production" && smtpUrl === null) {
+    throw new Error(
+      "loadConfig: SMTP_URL is required when NODE_ENV=production (login codes are emailed; there is no other delivery)",
+    );
+  }
+
   return {
     nodeEnv,
     port: parseIntEnv(env.PORT, 3000),
@@ -209,7 +227,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     otpTtlMinutes: parseIntEnv(env.OTP_TTL_MINUTES, 5),
     otpCodeLength: parseIntEnv(env.OTP_CODE_LENGTH, 6),
     otpMaxAttempts: parseIntEnv(env.OTP_MAX_ATTEMPTS, 5),
-    otpDevExpose: parseBoolEnv(env.OTP_DEV_EXPOSE, nodeEnv !== "production"),
+    // Dev/test convenience only: returning the OTP in the login response
+    // defeats the second factor, so production never does it, whatever
+    // OTP_DEV_EXPOSE says.
+    otpDevExpose: nodeEnv !== "production" && parseBoolEnv(env.OTP_DEV_EXPOSE, true),
+    smtpUrl,
+    otpFromEmail: env.OTP_FROM_EMAIL || "FilsPay <no-reply@filspay.example>",
+    corsAllowedOrigins: env.CORS_ALLOWED_ORIGINS
+      ? env.CORS_ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter((o) => o !== "")
+      : nodeEnv === "production"
+        ? []
+        : ["http://localhost:5173", "http://localhost:5174"],
 
     argon2MemoryKib: parseIntEnv(env.ARGON2_MEMORY_KIB, 19_456),
     argon2TimeCost: parseIntEnv(env.ARGON2_TIME_COST, 2),
@@ -256,6 +284,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     webhookRequestTimeoutMs: parseIntEnv(env.WEBHOOK_REQUEST_TIMEOUT_MS, 10_000),
 
     acquirerCallbackSigningSecret,
-    acquirerCallbackRequireSignature: parseBoolEnv(env.ACQUIRER_CALLBACK_REQUIRE_SIGNATURE, false),
+    // Fail closed: an unsigned fraud verdict must never be recorded by default.
+    acquirerCallbackRequireSignature: parseBoolEnv(env.ACQUIRER_CALLBACK_REQUIRE_SIGNATURE, true),
   };
 }

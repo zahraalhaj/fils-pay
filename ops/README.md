@@ -22,13 +22,17 @@ each package), not services with their own database connection.
 | File | Purpose |
 |---|---|
 | `docker-compose.yml` | the stack |
-| `.env.docker` | shared service settings, loaded by compose for every service |
-| `Dockerfile.node` | image for api, reporting, migrate and seed (`node:20`, full install) |
-| `Dockerfile.go` | multi-stage build of `apps/settlement` |
+| `.env.docker` | api secrets (`ACQUIRER_CALLBACK_SIGNING_SECRET`, `SMTP_URL`, …), loaded via `env_file`. **Not committed** — copy `.env.docker.example` |
+| `.env.docker.example` | template for the above |
+| `Dockerfile.node` | image for api, reporting, migrate and seed (`node:24`, runs TypeScript with tsx) |
+| `Dockerfile.go` | multi-stage build of `apps/settlement` (distroless, non-root) |
 
-> **AM (July):** the two Dockerfiles aren't in the repo for me. built my own
->
-> **MK:** they were in the initial ops commit. check you're on main
+The Dockerfiles were missing from the repo until 2026-10-30 (nothing could
+be built); they were never in the initial ops commit.
+
+`.env.docker` used to be committed with the acquirer signing secret in it
+(`.gitignore` only matched `.env`). It is untracked now, but the secret is
+still in git history: **rotate it** with the acquirer.
 
 ## Database
 
@@ -56,9 +60,10 @@ first.
 |---|---|---|
 | api | `DATABASE_URL`, `SETTLEMENT_INTERNAL_URL` | `environment:` |
 | api | `WEBHOOK_SECRET_ENCRYPTION_KEY` | only outside dev; a dev key is used otherwise |
-| api | `ACQUIRER_CALLBACK_SIGNING_SECRET`, `NODE_ENV` | `.env.docker` |
+| api | `ACQUIRER_CALLBACK_SIGNING_SECRET`, `NODE_ENV` | `.env.docker` (`env_file`) |
+| api, settlement | `SETTLEMENT_INTERNAL_TOKEN` (must match) | `environment:`; defaults to `dev-token` — set a real one when hosted |
+| api | `SMTP_URL` (and optional `OTP_FROM_EMAIL`) | **required in production** — login codes are emailed and there is no other delivery. Local: run Mailpit (`docker run -d -p 1025:1025 -p 8025:8025 axllent/mailpit:v1.20.4`), set `SMTP_URL=smtp://localhost:1025`, read codes at http://localhost:8025 |
 | settlement | `DATABASE_URL` | `environment:` |
-| settlement | `SETTLEMENT_INTERNAL_TOKEN` | defaults to `dev-token` |
 | reporting | `DATABASE_URL` | `environment:`; runs `worker` by default |
 
 > **MK:** the api won't boot without WEBHOOK_SECRET_ENCRYPTION_KEY in any environment. set it on the hosted box.

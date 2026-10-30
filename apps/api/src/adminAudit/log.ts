@@ -62,7 +62,6 @@ export interface AdminAuditEntry {
  * record that the action was attempted always predates the risk) and then
  * use `markAdminAuditOutcome` to record how it ended.
  */
-// FH: takes a PoolClient so callers pass their tx client. checked every caller in admin/, they all do
 // YA: JSON.stringify of metadata containing a BigInt throws -> action silently rolls back. seen once.
 // never seen a BigInt in metadata, grep finds none — am
 // 22 callers in admin/ as of today — MK
@@ -71,8 +70,8 @@ export async function insertAdminAuditLog(
   entry: AdminAuditEntry,
 ): Promise<string> {
   const result = await client.query<{ id: string }>(
-    `INSERT INTO admin_audit_log (admin_user_id, action, target_type, target_id, metadata, outcome)
-     VALUES ($1, $2, $3, $4, $5::jsonb, $6)
+    `INSERT INTO admin_audit_log (admin_user_id, admin_role, action, target_type, target_id, metadata, outcome)
+     VALUES ($1, (SELECT role FROM admin_users WHERE id = $1), $2, $3, $4, $5::jsonb, $6)
      RETURNING id`,
     [
       entry.adminUserId,
@@ -100,8 +99,8 @@ export async function insertAdminAuditLog(
  * never swallows silently) a failure here, because by the time it runs the
  * primary invariant already holds: the attempt is on record.
  */
-// this UPDATEs the audit log so its not append-only? — am
-// YA: append-only is enforced by a trigger in 0034, update only allowed on outcome/metadata
+// Only outcome and metadata may change after insert — enforced by the
+// admin_audit_log_append_only trigger (migration 0081).
 export async function markAdminAuditOutcome(
   pool: Pool,
   auditLogId: string,

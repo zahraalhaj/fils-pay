@@ -46,6 +46,29 @@ export function buildApp(config: Config, pool: Pool, options: BuildAppOptions = 
   app.decorate("acquirer", createAcquirerSimulator(config));
   app.decorate("webhookTransport", options.webhookTransport ?? createFetchTransport());
 
+  // CORS for the dashboard and admin console: only the configured origins,
+  // with credentials (both are cookie-authenticated). Runs for unmatched
+  // routes too, so a preflight OPTIONS is answered here.
+  app.addHook("onRequest", async (request, reply) => {
+    const origin = request.headers.origin;
+    if (!origin || !config.corsAllowedOrigins.includes(origin)) return;
+    reply
+      .header("access-control-allow-origin", origin)
+      .header("access-control-allow-credentials", "true")
+      .header("vary", "Origin");
+    if (request.method === "OPTIONS") {
+      return reply
+        .header("access-control-allow-methods", "GET, POST, PUT, PATCH, DELETE")
+        .header(
+          "access-control-allow-headers",
+          request.headers["access-control-request-headers"] ?? "content-type, idempotency-key",
+        )
+        .header("access-control-max-age", "600")
+        .code(204)
+        .send();
+    }
+  });
+
   app.register(cookiesPlugin);
   app.register(multipartPlugin, { config });
   app.setErrorHandler(errorHandler);

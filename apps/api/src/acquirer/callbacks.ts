@@ -22,7 +22,9 @@ interface TransactionMerchantRow {
  * timeline for support/finance to read — a fraud-review verdict is
  * informational, not a state transition, so this never touches
  * transactions.status or the ledger; a confirmed-fraud outcome still needs
- * a human decision to void/refund, exactly as today.
+ * a human decision to void/refund, exactly as today. A re-sent callback
+ * (same callbackId for the same transaction) is acknowledged but stored
+ * only once (FP-201).
  */
 export async function applyAcquirerCallback(pool: Pool, callback: AcquirerCallbackInput): Promise<void> {
   const txnResult = await pool.query<TransactionMerchantRow>(
@@ -37,7 +39,8 @@ export async function applyAcquirerCallback(pool: Pool, callback: AcquirerCallba
   await pool.query(
     `INSERT INTO acquirer_callback_notes
         (transaction_id, merchant_id, callback_id, callback_type, outcome, note, received_at)
-     VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     ON CONFLICT (callback_id, transaction_id) DO NOTHING`,
     [
       callback.transactionId,
       txnRow.merchant_id,

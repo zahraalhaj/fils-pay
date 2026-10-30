@@ -1,5 +1,4 @@
 import { createHmac } from "node:crypto";
-import { canonicalJson } from "../payments/idempotency.js";
 import { timingSafeEqualHex } from "../lib/crypto.js";
 
 /**
@@ -15,6 +14,9 @@ export interface SignedPayload {
   timestamp: number;
   /** header value: "t=<timestamp>,v1=<hex-hmac-sha256>" */
   signature: string;
+  /** The exact request body the signature covers — send this string, not a
+   *  re-serialization of the payload. */
+  body: string;
 }
 
 /**
@@ -33,9 +35,12 @@ export function signPayload(
   secret: string,
   timestamp: number = Math.floor(Date.now() / 1000),
 ): SignedPayload {
-  const signedString = `${timestamp}.${canonicalJson(payload)}`;
-  const signature = createHmac("sha256", secret).update(signedString).digest("hex");
-  return { timestamp, signature: `t=${timestamp},v1=${signature}` };
+  // Sign exactly the bytes that go on the wire (HANDOVER / ya/sign-raw): a
+  // receiver verifies the raw body it received, so signing a re-ordered
+  // canonical form made ~27% of Beta's deliveries fail verification.
+  const body = JSON.stringify(payload);
+  const signature = createHmac("sha256", secret).update(`${timestamp}.${body}`).digest("hex");
+  return { timestamp, signature: `t=${timestamp},v1=${signature}`, body };
 }
 
 interface ParsedSignatureHeader {
@@ -78,10 +83,10 @@ export interface VerifySignatureResult {
  * local receiver checks what the dispatcher actually sent) and meant for a
  * "test your webhook secret" merchant tool.
  */
-// FH: tolerance is checked AFTER the compare — claude says that's a timing oracle on the timestamp
-// doesnt matter, t is inside the mac — am
+/** `rawBody` should be the request body exactly as received. An object is
+ *  accepted for convenience and serialized with JSON.stringify. */
 export function verifySignature(
-  payload: unknown,
+  rawBody: string | unknown,
   header: string,
   secret: string,
   options?: { toleranceSeconds?: number; now?: number },
@@ -90,7 +95,7 @@ export function verifySignature(
   if (!parsed) return { valid: false, reason: "malformed_header" };
 
   const expected = createHmac("sha256", secret)
-    .update(`${parsed.timestamp}.${canonicalJson(payload)}`)
+    .update(`${parsed.timestamp}.${typeof rawBody === "string" ? rawBody : JSON.stringify(rawBody)}`)
     .digest("hex");
 
   if (!timingSafeEqualHex(expected, parsed.signature)) {
