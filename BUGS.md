@@ -167,6 +167,7 @@ Assigned ticket: finish the missing feature end to end (API → ledger → fees/
 | 2026-10-30 | 9, 10, 48, 34, 11, 14, 37, 61, 41, 47, 52, 27, 28, 25, 59, 69, 67, 68, 71 (+ #66 overflow) | (uncommitted) | Migrations 0077–0081. Each fix has a test; full suite run pending |
 | 2026-10-30 | 2, 7, 13, 26 (repo part), 29, 33, 38, 49, 53, 57, 65, 73 | (uncommitted) | Migrations 0082–0083. Each fix has a new test that fails on the old code. Typecheck clean; API 418/418; web 9/9; money 40/40; events 4/4; scripts 5/5; Go all ok; reporting 11/13 — the 2 failures are `runRebuild` (replays the old `{}` test-pollution events from id 0, #42) and an end-to-end pass whose events the live local reporting worker consumed first (shared DB) |
 | 2026-10-30 | 75 | (uncommitted) | Reporting 12/14 (2 known #42 pollution failures); typecheck clean. Live E2E refund re-run with OTP from Mailpit: refund 200, fee reversal 90, over-refund 422, ledger correct, `refund.succeeded` webhook delivered, refund now in reports |
+| 2026-10-30 | 81 | see git log | Fresh database: `npm run migrate` 77/77 applied (was: stopped at 0054). View definition md5-identical to the dev DB |
 
 ## Finance memo (2026-09-20) cross-reference
 
@@ -265,3 +266,9 @@ Follow-up #34: raw-body verification and production enforcement now complete the
 existing signature/freshness fix. Follow-up #48: server time also rejects a
 client timestamp just two minutes back, not only one outside the old grace window.
 Database/Go validation remains pending; injected tests are not real PostgreSQL concurrency evidence.
+
+## Backend reliability — 30 October 2026
+
+| # | Status | Bug | Where | Evidence | Fix |
+|---|---|---|---|---|---|
+| 81 | ✅ | **Fresh install impossible**: `npm run migrate` on an empty database stops at `0054_views.sql` (`v_unbatched_capture_events` reads a `settlement_batch_events` table no migration creates). With that fixed, `0055` fails next (inserts `code, account_type, description` into `chart_of_accounts`, whose columns are `id, name, kind`). The local dev DB only works because it was built from different versions of both files: its view uses `transaction_events.settlement_batch_id` and its two suspense accounts are `kind = 'asset'`. Blocks any new deployment (e.g. Dilmune) and any test DB built from scratch | `db/migrations/0054_views.sql`, `db/migrations/0055_chart_of_accounts_suspense.sql` | **[verified live]** migrated an empty scratch DB (`filspay_bug74`): failed at 0054, then 0055; every other migration applied cleanly when run one by one | Both files rewritten to what the dev DB actually contains (view filters `event_type IN ('captured','partially_captured') AND settlement_batch_id IS NULL`; accounts inserted as `(id, name, kind)` with `kind = 'asset'`). Edited in place: neither file can have succeeded anywhere as committed, so no database has the old version. **Verified:** empty DB migrates 77/77; `pg_get_viewdef` md5 identical to the dev DB; account rows identical |

@@ -3,7 +3,7 @@
 This is the plain-language version of [BUGS.md](BUGS.md). Each bug keeps the
 same number in both files, so you can look up the technical details there.
 
-**Total: 74 items** · ✅ 60 fixed · 🔴 4 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 10 not a bug
+**Total: 80 items** · ✅ 66 fixed · 🔴 4 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 10 not a bug
 
 Each heading starts with a running count (1, 2, 3 …). The number in brackets at the end, like (#15), is the bug's ID in [BUGS.md](BUGS.md); IDs were given in the order bugs were found, so they aren't in sequence.
 
@@ -545,3 +545,16 @@ and never finished. **Status: built and working end to end, except hosting.**
 These additions retain Zahra's existing report access, credit approval, key
 rotation overlap, outbound signing, streaming export and atomic capture fixes.
 See docs/reviews/2026-10-30-post-zahra-gaps.md for checks and remaining limits.
+
+## Backend reliability — 30 October 2026
+
+### 75. ✅ A brand-new database couldn't be set up (#81)
+
+Setting up FilsPay on a new server means running the database setup steps
+(`npm run migrate`) on an empty database. Step 54 failed because it referred to
+a table that never existed. Once that was fixed, step 55 failed because it used
+column names the table doesn't have. Our own computers only worked because they
+were set up with different versions of those two steps. So no new server could
+be set up, including the Dilmune hosting. Both steps now match what our working
+database actually has, and a completely empty database sets up from start to
+finish.
