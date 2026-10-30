@@ -8,7 +8,7 @@
   min-height: 100vh;
   margin: 0;
   padding: 0 0 var(--fp-space-6);
-  background: var(--fp-bg);
+  background: var(--fp-glow), var(--fp-bg);
   color: var(--fp-ink);
   font-family: var(--fp-font);
   font-size: var(--fp-text-md);
@@ -67,10 +67,16 @@
 }
 
 /* Summary: who is being paid and how much — always above the card fields. */
+/* Signature: who you pay and how much sits on the pearl sheen. Tokens are
+   re-pointed locally so the merchant name, amount and fils stay legible. */
 .checkout-summary {
-  padding-bottom: var(--fp-space-4);
-  margin-bottom: var(--fp-space-4);
-  border-bottom: 1px solid var(--fp-border);
+  --fp-ink: var(--fp-on-pearl);
+  --fp-ink-muted: var(--fp-on-pearl-muted);
+  margin: 0 0 var(--fp-space-4);
+  padding: var(--fp-space-4);
+  border-radius: var(--fp-radius-md);
+  background: var(--fp-pearl);
+  color: var(--fp-ink);
 }
 
 .checkout-summary p {
@@ -96,6 +102,7 @@
 }
 
 .checkout-shell h1 {
+  font-family: var(--fp-font-display);
   margin: 0 0 var(--fp-space-2);
   font-size: var(--fp-text-xl);
   line-height: 1.25;
@@ -127,6 +134,7 @@
 }
 
 .checkout-shell .ui-money-lg {
+  font-family: var(--fp-font-display);
   font-size: var(--fp-text-2xl);
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -236,7 +244,7 @@
   padding: 0 var(--fp-space-4);
   font: inherit;
   font-weight: 600;
-  color: var(--fp-ink-inverse);
+  color: var(--fp-on-primary);
   background: var(--fp-primary);
   border: 1px solid var(--fp-primary);
   border-radius: var(--fp-radius-md);

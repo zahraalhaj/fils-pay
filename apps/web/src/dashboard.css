@@ -29,6 +29,7 @@
 
 .dash-shell h1,
 .dash-centered h1 {
+  font-family: var(--fp-font-display);
   margin: 0;
   font-size: var(--fp-text-xl);
   line-height: 1.2;
@@ -128,6 +129,8 @@
 }
 
 .dash-brand {
+  font-family: var(--fp-font-display);
+  letter-spacing: -0.01em;
   display: flex;
   align-items: center;
   gap: var(--fp-space-2);
@@ -148,10 +151,11 @@
   width: 1.75rem;
   height: 1.75rem;
   border-radius: var(--fp-radius-sm);
-  background: var(--fp-primary);
-  color: var(--fp-ink-inverse);
+  background: var(--fp-pearl);
+  color: var(--fp-on-pearl);
+  font-family: var(--fp-font-display);
   font-size: var(--fp-text-sm);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .dash-merchant {
@@ -228,6 +232,7 @@
 }
 
 .dash-content {
+  background: var(--fp-glow);
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -351,14 +356,15 @@
 .dash-shell a.dash-button-primary {
   background: var(--fp-primary);
   border-color: var(--fp-primary);
-  color: var(--fp-ink-inverse);
+  color: var(--fp-on-primary);
+  font-weight: 600;
 }
 
 .dash-button-primary:hover,
 .dash-shell a.dash-button-primary:hover {
   background: var(--fp-primary-hover);
   border-color: var(--fp-primary-hover);
-  color: var(--fp-ink-inverse);
+  color: var(--fp-on-primary);
 }
 
 .dash-button-danger {
@@ -372,13 +378,15 @@
 }
 
 .dash-button-danger-solid {
-  background: var(--fp-danger);
-  border-color: var(--fp-danger);
-  color: var(--fp-ink-inverse);
+  background: var(--fp-danger-solid);
+  border-color: var(--fp-danger-solid);
+  color: var(--fp-on-danger);
+  font-weight: 600;
 }
 
 .dash-button-danger-solid:hover {
-  background: #861426;
+  background: var(--fp-danger-solid-hover);
+  border-color: var(--fp-danger-solid-hover);
 }
 
 .dash-button:disabled {
@@ -442,6 +450,7 @@
 }
 
 .ui-money-lg {
+  font-family: var(--fp-font-display);
   font-size: var(--fp-text-2xl);
   font-weight: 600;
   letter-spacing: -0.02em;
@@ -480,9 +489,14 @@
   font-weight: 600;
 }
 
+/* The signature: the one most important figure on a screen sits on pearl.
+   Tokens are re-pointed locally so <Money> and labels stay legible on it. */
 .dash-figure-emphasis {
-  border-color: var(--fp-primary);
-  box-shadow: inset 0 3px 0 var(--fp-primary);
+  --fp-ink: var(--fp-on-pearl);
+  --fp-ink-muted: var(--fp-on-pearl-muted);
+  color: var(--fp-ink);
+  background: var(--fp-pearl);
+  border-color: transparent;
 }
 
 /* ---------- Forms ---------- */
@@ -768,7 +782,7 @@
 }
 
 .dash-table tbody tr:hover td {
-  background: #fafbfa;
+  background: var(--fp-row-hover);
 }
 
 .dash-table .dash-num {

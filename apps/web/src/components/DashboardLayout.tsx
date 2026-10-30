@@ -4,6 +4,7 @@ import { useDashboardAuth } from "../auth/DashboardAuthContext.js";
 import { RequireRole } from "../auth/RequireRole.js";
 import { describeError } from "../api/client.js";
 import { ErrorNotice } from "../ui/Feedback.js";
+import { ThemeToggle } from "../ui/ThemeToggle.js";
 import "../dashboard.css";
 
 const ROLE_LABEL: Record<string, string> = { owner: "Owner", finance: "Finance", support: "Support" };
@@ -108,6 +109,7 @@ export function DashboardLayout() {
               </span>
             </>
           ) : null}
+          <ThemeToggle />
           <button type="button" className="dash-button" onClick={() => void handleSignOut()}>
             Sign out
           </button>

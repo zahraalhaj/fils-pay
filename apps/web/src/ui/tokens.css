@@ -1,20 +1,32 @@
-/* FilsPay design tokens — shared by the merchant dashboard and the public
-   checkout. Custom properties only: nothing here styles an element, so
-   importing it from either half of the app cannot leak layout into the other.
+/* FilsPay design tokens — shared by the merchant dashboard, the public
+   checkout and the admin console. Custom properties only: nothing here styles
+   an element, so importing it cannot leak layout between apps.
 
-   Palette is a proposal for the hackathon build, not an established brand:
-   cool "pearl" surfaces, slate ink, and one deep Gulf teal reserved for
-   primary actions. Status tones always ship with a text label — colour is
-   never the only signal. */
+   Two themes, chosen by `data-theme` on <html> (set before first paint by the
+   inline script in each index.html):
+   - "night" (default): "Gulf Night" — deep blue-green surfaces, a bright teal
+     for actions and focus, and one signature "pearl" sheen (a nod to
+     Bahrain's pearling heritage) used only on the brand mark and the single
+     most important amount on a screen.
+   - "light": cool pearl-white surfaces, slate ink, deep Gulf teal.
+
+   Palette is a proposal for the hackathon build, not an established brand.
+   Status tones always ship with a text label — colour is never the only
+   signal — and "pending" (processing / not confirmed) is deliberately not a
+   danger tone, so an uncertain payment never reads as a failed one.
+   Every text/background pair below is ≥ 4.5:1 in both themes. */
 :root {
+  color-scheme: light;
+
   /* Surfaces */
   --fp-bg: #f5f6f4;
   --fp-surface: #ffffff;
   --fp-surface-sunken: #eef0ed;
+  --fp-row-hover: #f7f8f6;
   --fp-border: #d9ddd8;
   --fp-border-strong: #b7bdb6;
 
-  /* Text — all ≥ 4.5:1 on --fp-surface and --fp-bg */
+  /* Text */
   --fp-ink: #1c2a33;
   --fp-ink-muted: #56636b;
   --fp-ink-inverse: #ffffff;
@@ -23,6 +35,7 @@
   --fp-primary: #0d5c6b;
   --fp-primary-hover: #0a4a57;
   --fp-primary-soft: #e3f0f1;
+  --fp-on-primary: #ffffff;
   --fp-focus: #1f7f93;
 
   /* Status tones: text / background / border */
@@ -35,8 +48,9 @@
   --fp-danger: #a3192e;
   --fp-danger-bg: #fbe9ec;
   --fp-danger-border: #eab0ba;
-  /* "Processing / not confirmed" — deliberately not a danger tone, so an
-     uncertain payment can never be mistaken for a failed one. */
+  --fp-danger-solid: #a3192e;
+  --fp-danger-solid-hover: #861426;
+  --fp-on-danger: #ffffff;
   --fp-pending: #3a4a9e;
   --fp-pending-bg: #eceefa;
   --fp-pending-border: #b9c0e8;
@@ -44,8 +58,19 @@
   --fp-neutral-bg: #eef0f1;
   --fp-neutral-border: #c9cfd3;
 
+  /* App chrome that is dark in both themes (admin header). */
+  --fp-chrome-bg: #1c2a33;
+  --fp-chrome-accent: #7fc8d6;
+
+  /* Signature "pearl" sheen and the ink that sits on it. */
+  --fp-pearl: linear-gradient(135deg, #e7f4f1 0%, #d3e3f4 42%, #eadff1 72%, #f5efe0 100%);
+  --fp-on-pearl: #102028;
+  --fp-on-pearl-muted: #3c4d57;
+  --fp-glow: linear-gradient(transparent, transparent);
+
   /* Type */
   --fp-font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --fp-font-display: "Sora", "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --fp-font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   --fp-text-xs: 0.75rem;
   --fp-text-sm: 0.875rem;
@@ -64,11 +89,58 @@
   --fp-space-7: 3rem;
 
   /* Shape */
-  --fp-radius-sm: 4px;
-  --fp-radius-md: 8px;
-  --fp-radius-lg: 12px;
+  --fp-radius-sm: 6px;
+  --fp-radius-md: 10px;
+  --fp-radius-lg: 16px;
   --fp-shadow: 0 1px 2px rgba(28, 42, 51, 0.06), 0 1px 1px rgba(28, 42, 51, 0.04);
 
   /* Hit targets */
   --fp-control-height: 2.75rem; /* 44px */
+}
+
+/* Gulf Night — the default theme. */
+:root[data-theme="night"] {
+  color-scheme: dark;
+
+  --fp-bg: #0e1a22;
+  --fp-surface: #15242e;
+  --fp-surface-sunken: #1b2d38;
+  --fp-row-hover: #1a2b35;
+  --fp-border: #263b47;
+  --fp-border-strong: #3c5463;
+
+  --fp-ink: #e8f0f2;
+  --fp-ink-muted: #9fb2bc;
+  --fp-ink-inverse: #0e1a22;
+
+  --fp-primary: #3fd8c7;
+  --fp-primary-hover: #74e5d8;
+  --fp-primary-soft: #143a3d;
+  --fp-on-primary: #0b1d20;
+  --fp-focus: #8af0e4;
+
+  --fp-success: #6fdba4;
+  --fp-success-bg: #12302a;
+  --fp-success-border: #245540;
+  --fp-warning: #f3c873;
+  --fp-warning-bg: #33291a;
+  --fp-warning-border: #5e4824;
+  --fp-danger: #ff97a5;
+  --fp-danger-bg: #3a1a22;
+  --fp-danger-border: #6e2c39;
+  --fp-danger-solid: #ff8a9a;
+  --fp-danger-solid-hover: #ffadb8;
+  --fp-on-danger: #2a0e14;
+  --fp-pending: #b3bcff;
+  --fp-pending-bg: #1f2547;
+  --fp-pending-border: #3c477d;
+  --fp-neutral: #bac6cd;
+  --fp-neutral-bg: #1e2d36;
+  --fp-neutral-border: #375060;
+
+  --fp-chrome-bg: #0a141a;
+  --fp-chrome-accent: #3fd8c7;
+
+  --fp-glow: radial-gradient(60rem 28rem at 85% -12%, rgba(63, 216, 199, 0.09), transparent 60%);
+  --fp-shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 10px 30px rgba(0, 0, 0, 0.28);
 }

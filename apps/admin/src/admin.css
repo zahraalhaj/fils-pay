@@ -11,7 +11,8 @@ body {
   font-size: var(--fp-text-md);
   line-height: 1.5;
   color: var(--fp-ink);
-  background: var(--fp-bg);
+  background: var(--fp-glow), var(--fp-bg);
+  background-attachment: fixed;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -39,6 +40,7 @@ code {
 }
 
 h1 {
+  font-family: var(--fp-font-display);
   margin: var(--fp-space-2) 0 var(--fp-space-2);
   font-size: var(--fp-text-xl);
   line-height: 1.2;
@@ -69,11 +71,13 @@ h3 {
   align-items: center;
   gap: var(--fp-space-3) var(--fp-space-5);
   padding: var(--fp-space-3) var(--fp-space-5);
-  background: var(--fp-ink);
-  color: var(--fp-ink-inverse);
+  background: var(--fp-chrome-bg);
+  color: #ffffff;
+  border-bottom: 1px solid var(--fp-border);
 }
 
 .admin-brand {
+  font-family: var(--fp-font-display);
   display: flex;
   align-items: center;
   gap: var(--fp-space-2);
@@ -114,7 +118,7 @@ h3 {
   min-height: 2.75rem;
   padding: 0 var(--fp-space-3);
   border-radius: var(--fp-radius-sm);
-  color: var(--fp-ink-inverse);
+  color: #ffffff;
   text-decoration: none;
   font-weight: 500;
 }
@@ -125,11 +129,11 @@ h3 {
 
 .admin-nav a.active {
   background: rgba(255, 255, 255, 0.16);
-  box-shadow: inset 0 -3px 0 #7fc8d6;
+  box-shadow: inset 0 -3px 0 var(--fp-chrome-accent);
 }
 
 .admin-header :focus-visible {
-  outline-color: #7fc8d6;
+  outline-color: var(--fp-chrome-accent);
 }
 
 .admin-identity {
@@ -151,7 +155,7 @@ h3 {
 
 .admin-header button {
   background: transparent;
-  color: var(--fp-ink-inverse);
+  color: #ffffff;
   border-color: rgba(255, 255, 255, 0.5);
 }
 
@@ -248,7 +252,8 @@ button:disabled {
 .admin-button-primary {
   background: var(--fp-primary);
   border-color: var(--fp-primary);
-  color: var(--fp-ink-inverse);
+  color: var(--fp-on-primary);
+  font-weight: 600;
 }
 
 .admin-button-primary:hover {
@@ -256,13 +261,14 @@ button:disabled {
 }
 
 .admin-button-danger {
-  background: var(--fp-danger);
-  border-color: var(--fp-danger);
-  color: var(--fp-ink-inverse);
+  background: var(--fp-danger-solid);
+  border-color: var(--fp-danger-solid);
+  color: var(--fp-on-danger);
+  font-weight: 600;
 }
 
 .admin-button-danger:hover {
-  background: #861426;
+  background: var(--fp-danger-solid-hover);
 }
 
 .admin-actions {
