@@ -3,7 +3,7 @@
 This is the plain-language version of [BUGS.md](BUGS.md). Each bug keeps the
 same number in both files, so you can look up the technical details there.
 
-**Total: 66 items** · ✅ 41 fixed · 🔴 7 confirmed, not fixed · ❓ 14 suspected · 🟡 1 worked around · ➖ 3 not a bug
+**Total: 57 items** · ✅ 24 fixed · 🔴 15 confirmed, not fixed · ❓ 14 suspected · 🟡 1 worked around · ➖ 3 not a bug
 
 Each heading starts with a running count (1, 2, 3 …). The number in brackets at the end, like (#15), is the bug's ID in [BUGS.md](BUGS.md); IDs were given in the order bugs were found, so they aren't in sequence.
 
@@ -163,26 +163,29 @@ refunded.
 
 ## Card payments and payment links
 
-### 20. ✅ A payment link can be paid twice (#9)
-
-**Fixed in the second audit:** Only active links can be claimed; no elapsed-time reclaim. Ambiguous captures remain reserved; read status stays processing. Reconciliation is required after crashes.
+### 20. 🔴 A payment link can be paid twice (#9)
+A payment link should only work once. If the first customer's card takes
+longer than 60 seconds, the link opens up again and a second customer can pay
+too. This caused the May incident, which was wrongly blamed on duplicate
+messages from the bank.
 
 ### 21. 🔴 Nothing stops a second payment on the same link (#10)
 The safety rule "one successful payment per link" was marked as done but was
 never actually added.
 
-### 22. ✅ Messages from the bank aren't de-duplicated (#11)
-
-**Fixed in the second audit:** Serialize callback IDs with a transaction advisory lock and check durable notes before insertion; historical duplicates are retained.
+### 22. 🔴 Messages from the bank aren't de-duplicated (#11)
+If the bank sends the same notification twice, FilsPay records it twice. A
+"fix" for this was announced in May but doesn't exist.
 
 ### 23. ✅ One shop can cancel another shop's payment link (#45)
 A shop can cancel any payment link on the platform if it knows the link's ID,
 even links that belong to a different shop.
 **Fixed:** a shop can now only cancel its own links. Tested: the other shop gets "not found" and the link stays active.
 
-### 24. ✅ Expired payment links can still be paid (#48)
-
-**Fixed in the second audit:** Public checkout ignores untrusted submittedAt and checks server time (ADR-0007).
+### 24. 🔴 Expired payment links can still be paid (#48)
+The payment page trusts the time the customer's device says it is. Anyone can
+claim it's an earlier date and pay a link that has already expired.
+A real customer reported exactly this (ticket FP-187). The design documents allow it for offline card terminals, but the public payment page lets anyone use it.
 
 ### 25. ❓ Card holds may come back after being cancelled (#12)
 A "hold" reserves money on a customer's card. After a cancellation, some holds
@@ -218,19 +221,21 @@ When FilsPay staff viewed a shop's account, senior staff got full owner rights
 instead of read-only access. Staff who had been disabled could keep using it.
 **Fixed:** it is always read-only now, and disabled staff are blocked.
 
-### 32. ✅ Anyone can send fake fraud reports (#34)
+### 32. 🔴 Anyone can send fake fraud reports (#34)
+The bank sends signed "fraud review" messages. FilsPay accepts messages
+**with no signature at all**.
+**We proved it:** a made-up "confirmed fraud" message on an Alpha Retail
+payment was accepted and saved. Old signed messages can also be re-sent
+forever.
 
-**Fixed in the second audit:** Signatures required by default and forced in production; original JSON bytes, five-minute clock tolerance and timingSafeEqual. Fresh signatures are required on retries.
-
-### 33. ✅ Replaced API keys kept working (#47)
+### 33. 🔴 Replaced API keys keep working (#47)
 When staff "rotate" a shop's API key, a new key is created but the old one is
-never switched off.
-**Fixed in the fork follow-up:** the previous key is revoked atomically with the replacement and audit record. Validated with injected database calls; live database validation remains pending.
+never switched off. Every key ever rotated still works.
 
-### 34. ✅ Credit approval checked names instead of identities (#25)
+### 34. 🔴 Staff can approve their own large credits (#25)
 Big credits need a second person to approve them. The system checks this by
-comparing *display names* instead of user IDs.
-**Fixed in the fork follow-up:** approval now compares user IDs, so renaming cannot bypass this check and two different staff members may share a name. The principal-only size threshold is documented policy, not a confirmed bug.
+comparing *display names* instead of user IDs. The size check also ignores
+part of the amount, so some large credits skip approval entirely.
 
 ### 35. 🔴 A secret key is saved in the code repository (#26)
 A real signing secret was committed to the code where anyone with access can
@@ -278,11 +283,10 @@ Checked: the date calculation is actually correct.
 
 ## Webhooks (automatic notifications to shops)
 
-### 44. ✅ Webhook signatures did not match the message sent (#14)
+### 44. 🔴 Webhook signatures don't match the message sent (#14)
 FilsPay signs each notification so shops can trust it, but it signs one copy
 of the message and sends a separately-built copy. If the two differ, the
-shop's check fails. The handover referred to a fix on `ya/sign-raw`; that claim alone did not prove a code change.
-**Fixed in the fork follow-up:** serialize once, sign those exact bytes, then send them. Both delivery and send-test paths are covered by independent receiver-HMAC checks.
+shop's check fails. A fix existed on Yousif's deleted branch `ya/sign-raw`.
 
 ### 45. 🔴 Shops get two "your payout is on the way" messages (#52)
 Two parts of the system can check "has this payout been announced yet?" at
@@ -308,9 +312,9 @@ crashes on start-up unless you provide your own key.
 Two build files that the setup needs are missing, so the services can't be
 started with Docker.
 
-### 50. ✅ Exporting transactions loads everything into memory at once (#33)
-
-**Fixed in the second audit:** Live route now returns a Readable backed by a snapshot cursor, fetching 1,000 rows at a time with backpressure and cleanup.
+### 50. 🔴 Exporting transactions loads everything into memory at once (#33)
+The release notes say the export streams data bit by bit; it doesn't. Big
+exports can crash the server.
 
 ### 51. 🟡 The websites couldn't talk to the API (#38)
 The API doesn't allow the dashboards' web addresses to call it, although a
@@ -382,42 +386,3 @@ and never finished. **Status: built and working end to end, except hosting.**
   to a bug number in [BUGS.md](BUGS.md).
 - **Test data:** running the automated tests adds hundreds of fake shops to the
   local database. `npm run seed` resets it.
-
-### 58. ✅ Reports could expose another marketplace’s child shop (#59)
-A shop could request a report for any marketplace child, even one belonging to another parent. The relationship check now requires that child to belong to the authenticated parent.
-
-Validation details and remaining risks: [fork review](docs/reviews/2026-10-30-fork-review.md).
-
-## Second audit additions
-
-### ✅ Callback payload validation accepted arbitrary outcome strings and malformed IDs/dates (#60)
-
-Validate the outcome enum, UUID, timestamp and field types before persistence.
-
-### ✅ CSV streaming helper skipped rows sharing the final page timestamp and lost microsecond precision (#61)
-
-Replace timestamp pagination with a database snapshot cursor ordered by occurred_at and id.
-
-### ✅ Merchant CSV references could become spreadsheet formulas; carriage returns were not escaped (#62)
-
-Prefix formula-like references with an apostrophe; CSV-quote carriage returns.
-
-### ✅ Each webhook endpoint/replay could create another payout instruction for one batch (#63)
-
-Lock the settlement batch, check existing instructions and insert within one transaction. Existing duplicate records are not removed.
-
-### ✅ Webhook HTTP requests automatically followed redirects to unvalidated destinations (#64)
-
-Use manual redirects. This closes redirect following only; initial private-host/DNS SSRF remains open.
-
-### ✅ Webhook HTTP response bodies were read without a size cap (#65)
-
-Keep at most 64 KiB and cancel the remaining response body.
-
-### ✅ A failed ROLLBACK masked the original error and returned a broken client to the pool (#66)
-
-Preserve the original error and release the client with the rollback failure so pg discards it.
-
-### ✅ Development fallback webhook encryption key decoded to 34 bytes, so development boot failed without an explicit key (#67)
-
-Use an exactly 32-byte development fallback. Production still requires an explicit encryption key.

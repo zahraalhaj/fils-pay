@@ -1,7 +1,5 @@
 # Hackathon bug tracker
 
-Latest review: [2026-10-30 fork review](docs/reviews/2026-10-30-fork-review.md), based on `0b3d3c3`. New fixes below were tested with injected dependencies, not a live database.
-
 Status: 🔴 open · 🟡 in progress · ✅ fixed · ❓ lead (unverified) · ➖ not a bug
 
 Confidence tags (Evidence column): **[verified live]** reproduced against the running app/DB or by executing the code · **[code-confirmed]** traced in the code against the spec, not yet reproduced · **[failing test]** a test fails, root cause not yet known. Anything weaker stays ❓. Red herrings that turned out fine are marked ➖ rather than deleted.
@@ -31,9 +29,9 @@ Keep both files in sync (same bug numbers).
 
 | # | Status | Bug | Where | Evidence | Fix |
 |---|---|---|---|---|---|
-| 9 | ✅ | Payment link re-claimable after 60 s reservation timeout → double payment | `apps/api/src/paymentLinks/pay.ts:66-75,152` | **[code-confirmed]** Every double had first attempt > 60 s; AM postmortem note | Only active links can be claimed; no elapsed-time reclaim. Ambiguous captures remain reserved; read status stays processing. Reconciliation is required after crashes. |
+| 9 | 🔴 | Payment link re-claimable after 60 s reservation timeout → double payment | `apps/api/src/paymentLinks/pay.ts:66-75,152` | **[code-confirmed]** Every double had first attempt > 60 s; AM postmortem note | |
 | 10 | 🔴 | No constraint "one successful capture per link" (FP-202 marked done, never merged) | migrations / pay.ts | **[code-confirmed]** postmortem action #2 | |
-| 11 | ✅ | Acquirer callbacks not deduplicated (no `processed_events`) | `apps/api/src/acquirer/callbacks.ts` | **[code-confirmed]** commit bf66bf2 "They are not"; no migration; support ticket FP-201 (reopened): two identical notes saved for one callback | Serialize callback IDs with a transaction advisory lock and check durable notes before insertion; historical duplicates are retained. |
+| 11 | 🔴 | Acquirer callbacks not deduplicated (no `processed_events`) | `apps/api/src/acquirer/callbacks.ts` | **[code-confirmed]** commit bf66bf2 "They are not"; no migration; support ticket FP-201 (reopened): two identical notes saved for one callback | |
 | 12 | ❓ | Holds flip back to `active` after void | `apps/api/src/payments/void.ts`, `scripts/expire_holds.ts` | Slack 05-14 | |
 | 13 | ❓ | Idempotency: same key + same body on a different transaction should 422 | `apps/api/src/payments/idempotency.ts` | `transactions.test.ts:218` | |
 
@@ -41,7 +39,7 @@ Keep both files in sync (same bug numbers).
 
 | # | Status | Bug | Where | Evidence | Fix |
 |---|---|---|---|---|---|
-| 14 | ✅ | Signature computed by `signPayload(row.payload)` but body sent is a separate `JSON.stringify(row.payload)` — sign the exact bytes sent | `apps/api/src/webhooks/dispatcher.ts:158,172` | **[code-confirmed]** lost branch `ya/sign-raw`; Beta signature complaint | Both dispatcher and send-test serialize the canonical body once, sign that exact string, and send it unchanged. Independent receiver-HMAC regression checks cover both paths; see fork review. |
+| 14 | 🔴 | Signature computed by `signPayload(row.payload)` but body sent is a separate `JSON.stringify(row.payload)` — sign the exact bytes sent | `apps/api/src/webhooks/dispatcher.ts:158,172` | **[code-confirmed]** lost branch `ya/sign-raw`; Beta signature complaint | |
 
 ## Balances / ledger
 
@@ -67,7 +65,7 @@ Keep both files in sync (same bug numbers).
 | 22 | ✅ | Impersonation maps super_admin→merchant `owner`, finance→`finance` (spec: always `support`, read-only). Grant lookup doesn't check admin is still active; the "admin-disable trigger" FH cites doesn't exist | `apps/api/src/admin/impersonation.ts:86-90,113` | **[code-confirmed]** HANDOVER; ARCH §8 | All admin roles map to merchant `support`; grant lookup requires `au.status = 'active'`; new `impersonation.new.test.ts` |
 | 23 | ❓ | 403 instead of 404 for another merchant's resource | `apps/api/src/routes/apiKeys.ts:18` | ARCHITECTURE: 404 everywhere | |
 | 24 | ➖ | (Not a bug — admin re-set just refreshes TTL; admin lookup checks `authenticated`) Admin cookie set twice | `apps/api/src/routes/adminAuth.ts:179` | | |
-| 25 | ✅ | Credit self-approval check compares **display name**, not admin user id (confirmed vs HANDOVER). Threshold ignoring fee reversal is only supported by an FH comment, not the spec — treat that half as a lead | `apps/api/src/admin/creditApproval.ts:9`, `creditThreshold.ts` | **[code-confirmed]** HANDOVER; FH comment `credits.ts:226` | Compare immutable adminUserId, not displayName. Regression cases reject same ID/changed name and accept distinct IDs/same name. Principal-only threshold follows ADMIN.md and is unchanged. |
+| 25 | 🔴 | Credit self-approval check compares **display name**, not admin user id (confirmed vs HANDOVER). Threshold ignoring fee reversal is only supported by an FH comment, not the spec — treat that half as a lead | `apps/api/src/admin/creditApproval.ts:9`, `creditThreshold.ts` | **[code-confirmed]** HANDOVER; FH comment `credits.ts:226` | |
 | 26 | 🔴 | `ops/.env.docker` committed with acquirer signing secret (`.gitignore` `.env` doesn't match it) | `ops/.env.docker` | **[code-confirmed]** `git ls-files` | |
 
 ## Infra / reliability
@@ -85,8 +83,8 @@ Keep both files in sync (same bug numbers).
 | 44 | ✅ | Dashboard fee display picks newest **created** fee_schedules row (`ORDER BY created_at DESC`); billing uses newest **effective_from ≤ now**. Backfills/backdated rows show wrong rate. Go `LoadFeeSchedules` lacks `created_at` tie-break so same-day corrections can differ from API | `apps/api/src/fees/currentFeeScheduleDisplay.ts`, `apps/settlement/internal/settlement/fee_schedule.go:32` | **[code-confirmed]** Memo: shows 245bps, charges 225bps | Display query now `effective_from <= now() ORDER BY effective_from DESC, created_at DESC` (same as billing); display test corrected (asserted 245) + future-dated case; Go `LoadFeeSchedules` tie-break `created_at ASC` |
 | 45 | ✅ | Cross-merchant payment link cancel: route checks path merchant = caller, but `cancelPaymentLink` filters by link id only → A cancels B's link via `/merchants/A/payment-links/<B's id>` | `apps/api/src/paymentLinks/cancel.ts`, `routes/paymentLinks.ts:105` | **[code-confirmed]** Memo | Scope `cancelPaymentLink` by `merchant_id` (UPDATE and lookup); route passes path merchant; new `paymentLinks/cancel.new.test.ts` (other merchant → not_found, link stays active; owner → canceled). 10/10 pass |
 | 46 | ✅ | **Over-refund on partial captures**: refundable = `amount_fils` (authorized) − refunded instead of `captured_fils` − refunded → 10 BD auth / 4 BD capture can refund 10 BD | `apps/api/src/payments/processRefund.ts:90` | **[code-confirmed]** Code read; validateRefundRequest trusts the passed `refundableFils` | Refundable = captured − refunded; new `processRefund.fixes.new.test.ts` (fails on old code) |
-| 47 | ✅ | Admin API key **rotation never revokes the old key** (AM's "it does, around line 47" is false); `revoke_after` column (0056) is never read and no sweep job exists → rotated keys stay valid forever | `apps/api/src/admin/apiKeys.ts`, `apiKeys/verify.ts:19`, `db/migrations/0056_api_keys_revoke_after.sql` | **[code-confirmed]** Commit 3d9b223 "rotated everything **again**" | Revoke the locked predecessor in the same transaction as replacement issuance and audit. Unit checks cover commit, rollback on audit failure and ownership rejection. No grace period is introduced. |
-| 48 | ✅ | Payment link expiry trusts client `submittedAt` with no bound — anyone can pay an expired link by sending an old timestamp. **Note:** ARCHITECTURE.md documents client-clock expiry for offline terminals, so this is a design risk, not a spec violation | `apps/api/src/paymentLinks/pay.ts:34-38,60` | **[code-confirmed]** Support ticket FP-187: buyer saw "expired" yet was charged; ARCHITECTURE documents client-clock expiry for offline terminals, but the public endpoint applies it to anyone, unbounded | Public checkout ignores untrusted submittedAt and checks server time (ADR-0007). |
+| 47 | 🔴 | Admin API key **rotation never revokes the old key** (AM's "it does, around line 47" is false); `revoke_after` column (0056) is never read and no sweep job exists → rotated keys stay valid forever | `apps/api/src/admin/apiKeys.ts`, `apiKeys/verify.ts:19`, `db/migrations/0056_api_keys_revoke_after.sql` | **[code-confirmed]** Commit 3d9b223 "rotated everything **again**" | |
+| 48 | 🔴 | Payment link expiry trusts client `submittedAt` with no bound — anyone can pay an expired link by sending an old timestamp. **Note:** ARCHITECTURE.md documents client-clock expiry for offline terminals, so this is a design risk, not a spec violation | `apps/api/src/paymentLinks/pay.ts:34-38,60` | **[code-confirmed]** Support ticket FP-187: buyer saw "expired" yet was charged; ARCHITECTURE documents client-clock expiry for offline terminals, but the public endpoint applies it to anyone, unbounded | |
 | 49 | ❓ | API-key actors bypass `requireMerchantRole` entirely (MK: "by design") — keys can hit owner-only routes; impersonation writes recorded as `merchant_session` (audit can't tell admin from merchant) | `apps/api/src/auth/requireMerchantAuth.ts:128-155` | FH/AM comments | |
 | 50 | ✅ | **Concurrent refunds pay out twice**: `processRefund` reads the transaction without `FOR UPDATE`, calls the acquirer, then writes `refunded_fils = <snapshot> + amount`. Two simultaneous refunds (different idempotency keys) both validate against the same snapshot, both hit the acquirer, and the second write overwrites the first. Capture/void lock the row; refunds don't. **Latent**: `POST /v1/refunds` is still a 501 stub | `apps/api/src/payments/processRefund.ts:72-76,200+` | **[code-confirmed]** Support ticket FP-209 | Step 1 locks the row `FOR UPDATE` and reserves `refunded_fils += amount` before the acquirer call; decline/error releases it; journal re-reads under lock. Test: two concurrent 6,000 refunds on 10,000 → one 200, one 422 |
 | 51 | ✅ | **Cross-merchant refund**: `initiateMerchantRefund` looks the transaction up by id only and then uses the *transaction's* merchant, so merchant A could refund merchant B's payment (and B's refund hold is checked against A). The "Claude-drafted" route in `routes/refunds.ts` would also mint a fresh idempotency key per request. **Latent** until the route is wired | `apps/api/src/refunds/initiateMerchantRefund.ts:62-75`, `routes/refunds.ts` | **[code-confirmed]** `processRefund.test.ts:466` TODO "Claude says it's covered" — it isn't | `processRefund` and `initiateMerchantRefund` look the transaction up by id **and** caller's merchant; route asserts path merchant = caller. Tests at service and route level |
@@ -100,10 +98,10 @@ Keep both files in sync (same bug numbers).
 | 30 | ❓ | Reporting worker leaks LISTEN connections (#398) | `apps/reporting/src/consumer/listener.ts` | FP-209 load test | |
 | 31 | ❓ | Missing unique index `(merchant_id, effective_from)` on fee schedules | `apps/api/src/fees/feeSchedule.ts:16` | "Claude says" | |
 | 32 | ❓ | `POST /v1/refunds` returns 501 — route not wired | `apps/api/src/routes/refunds.ts` | HANDOVER | |
-| 33 | ✅ | CSV export route uses `buildTransactionsExportCsv` (whole result in memory), not the streaming variant the CHANGELOG claims | `apps/api/src/routes/transactions.ts:161` | **[code-confirmed]** CHANGELOG 1.8.0 "streams rows"; 09-15 API restarts | Live route now returns a Readable backed by a snapshot cursor, fetching 1,000 rows at a time with backpressure and cleanup. |
+| 33 | 🔴 | CSV export route uses `buildTransactionsExportCsv` (whole result in memory), not the streaming variant the CHANGELOG claims | `apps/api/src/routes/transactions.ts:161` | **[code-confirmed]** CHANGELOG 1.8.0 "streams rows"; 09-15 API restarts | |
 | 36 | ✅ | Refunds fail: `processRefund` inserts explicit `NULL` reason, which bypasses the column DEFAULT and violates `chk_refunds_reason_not_null` (11 tests) | `apps/api/src/payments/processRefund.ts:189` / migration 0070 | **[verified live]** `npm test` baseline | Insert `input.reason ?? "unspecified"` (column default) instead of NULL; 19/19 refund tests pass |
 | 37 | 🔴 | Webhook dispatcher backoff/exhaustion test fails (pre-existing) — **cause unknown**: could be the code or the test | `apps/api/src/webhooks/dispatcher.ts` | **[failing test]** `npm test` baseline | |
-| 34 | ✅ | Acquirer callbacks accepted with **no signature header at all** when `ACQUIRER_CALLBACK_REQUIRE_SIGNATURE` is unset (default false); no timestamp tolerance → signed callbacks replayable forever; `constantTimeEquals` uses `Buffer.compare` (not constant-time); HMAC over re-serialised JSON, not raw bytes | `apps/api/src/webhooks/inboundVerify.ts`, `apps/api/src/config.ts:259` | **[verified live]** **Verified**: unsigned POST with `outcome: confirmed_fraud` on an Alpha txn → 200 and stored in `acquirer_callback_notes`. CHANGELOG 1.9.0 claims "signature-checked" | Signatures required by default and forced in production; original JSON bytes, five-minute clock tolerance and timingSafeEqual. Fresh signatures are required on retries. |
+| 34 | 🔴 | Acquirer callbacks accepted with **no signature header at all** when `ACQUIRER_CALLBACK_REQUIRE_SIGNATURE` is unset (default false); no timestamp tolerance → signed callbacks replayable forever; `constantTimeEquals` uses `Buffer.compare` (not constant-time); HMAC over re-serialised JSON, not raw bytes | `apps/api/src/webhooks/inboundVerify.ts`, `apps/api/src/config.ts:259` | **[verified live]** **Verified**: unsigned POST with `outcome: confirmed_fraud` on an Alpha txn → 200 and stored in `acquirer_callback_notes`. CHANGELOG 1.9.0 claims "signature-checked" | |
 
 > CHANGELOG.md (added by AM in a5bffea, mislabelled "fix flaky test") claims
 > fixes that never happened. AGENTS.md tells agents to trust it. Verify every
@@ -210,26 +208,3 @@ Assigned ticket: finish the missing feature end to end (API → ledger → fees/
 | 2026-10-30 | `docs/API.md` (cited by MK and FH for the refund path) does not exist in the repo |
 | 2026-10-30 | Webhook URL check only requires https in production and explicitly allows localhost ("removed for the local receiver — am") — possible SSRF lead, not investigated |
 | 2026-10-30 | Live E2E left an API key "fp-300 e2e", a webhook endpoint to 127.0.0.1:8099 and a refunded transaction (ref `fp-300-e2e`) on Alpha in the local DB |
-
-## 2026-10-30 follow-up review
-
-| # | Status | Bug | Where | Evidence | Fix |
-|---|---|---|---|---|---|
-| 59 | ✅ | Reporting scope allowed any caller to read a merchant that was any marketplace child, without checking parent ownership | `apps/api/src/reporting/scope.ts` | Code trace plus injected-query regression; no live DB verification | Require child and authenticated parent in the same relationship query; preserve caller-only fallback |
-
-See [review report](docs/reviews/2026-10-30-fork-review.md) for validation limits and newly identified refund/settlement risks that remain open.
-
-## Second audit fixes — 2026-10-30
-
-| # | Status | Bug | Where | Evidence | Fix |
-|---|---|---|---|---|---|
-| 60 | ✅ | Callback payload validation accepted arbitrary outcome strings and malformed IDs/dates | `apps/api/src/routes/acquirerCallbacks.ts` | Code trace and injected regression tests; DB integration not run | Validate the outcome enum, UUID, timestamp and field types before persistence. |
-| 61 | ✅ | CSV streaming helper skipped rows sharing the final page timestamp and lost microsecond precision | `apps/api/src/transactions/exportCsv.ts` | Code trace and injected regression tests; DB integration not run | Replace timestamp pagination with a database snapshot cursor ordered by occurred_at and id. |
-| 62 | ✅ | Merchant CSV references could become spreadsheet formulas; carriage returns were not escaped | `apps/api/src/transactions/exportCsv.ts` | Code trace and injected regression tests; DB integration not run | Prefix formula-like references with an apostrophe; CSV-quote carriage returns. |
-| 63 | ✅ | Each webhook endpoint/replay could create another payout instruction for one batch | `apps/api/src/webhooks/payoutDisbursement.ts` | Code trace and injected regression tests; DB integration not run | Lock the settlement batch, check existing instructions and insert within one transaction. Existing duplicate records are not removed. |
-| 64 | ✅ | Webhook HTTP requests automatically followed redirects to unvalidated destinations | `apps/api/src/webhooks/transport.ts` | Code trace and injected regression tests; DB integration not run | Use manual redirects. This closes redirect following only; initial private-host/DNS SSRF remains open. |
-| 65 | ✅ | Webhook HTTP response bodies were read without a size cap | `apps/api/src/webhooks/transport.ts` | Code trace and injected regression tests; DB integration not run | Keep at most 64 KiB and cancel the remaining response body. |
-| 66 | ✅ | A failed ROLLBACK masked the original error and returned a broken client to the pool | `apps/api/src/db/withTransaction.ts` | Code trace and injected regression tests; DB integration not run | Preserve the original error and release the client with the rollback failure so pg discards it. |
-| 67 | ✅ | Development fallback webhook encryption key decoded to 34 bytes, so development boot failed without an explicit key | `apps/api/src/config.ts` | Code trace and injected regression tests; DB integration not run | Use an exactly 32-byte development fallback. Production still requires an explicit encryption key. |
-
-Validation and remaining risks: [second audit report](docs/reviews/2026-10-30-second-audit.md).

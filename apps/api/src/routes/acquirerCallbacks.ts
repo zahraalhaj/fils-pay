@@ -8,7 +8,7 @@ const ACQUIRER_SIGNATURE_HEADER = "acquirer-callback-signature";
 
 /**
  * Body of a fraud_review.completed callback. `outcome` is validated against
- * the AcquirerCallbackInput union ("cleared" | "confirmed_fraud") before it is
+ * the AcquirerCallbackInput union ("approved" | "rejected") before it is
  * applied; any other value is a 400.
  */
 interface AcquirerCallbackBody {
@@ -38,24 +38,15 @@ function getSignatureHeader(request: FastifyRequest): string | undefined {
  * endpoint has.
  */
 export async function acquirerCallbackRoutes(app: FastifyInstance): Promise<void> {
-  // Keep the original bytes within this encapsulated route plugin only.
-  const rawBodies = new WeakMap<FastifyRequest, string>();
-  app.removeContentTypeParser("application/json");
-  app.addContentTypeParser("application/json", { parseAs: "string" }, (request, raw, done) => {
-    const text = raw as string;
-    rawBodies.set(request, text);
-    try { done(null, JSON.parse(text)); }
-    catch { done(new BadRequestError("invalid_request", "Invalid JSON")); }
-  });
   app.post<{ Body: AcquirerCallbackBody }>("/callbacks", async (request, reply) => {
     const body = request.body ?? {};
     if (
-      typeof body.callbackId !== "string" || !body.callbackId ||
+      !body.callbackId ||
       body.type !== "fraud_review.completed" ||
-      typeof body.transactionId !== "string" || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(body.transactionId) ||
-      typeof body.occurredAt !== "string" || !Number.isFinite(Date.parse(body.occurredAt)) ||
-      (body.outcome !== "cleared" && body.outcome !== "confirmed_fraud") ||
-      typeof body.note !== "string" || !body.note
+      !body.transactionId ||
+      !body.occurredAt ||
+      !body.outcome ||
+      !body.note
     ) {
       throw new BadRequestError(
         "invalid_request",
@@ -67,8 +58,7 @@ export async function acquirerCallbackRoutes(app: FastifyInstance): Promise<void
       body,
       getSignatureHeader(request),
       app.config.acquirerCallbackSigningSecret,
-      app.config.nodeEnv === "production" || app.config.acquirerCallbackRequireSignature,
-      { rawBody: rawBodies.get(request) },
+      app.config.acquirerCallbackRequireSignature,
     );
     if (!verification.valid) {
       throw new UnauthorizedError("invalid_signature", verification.reason);
