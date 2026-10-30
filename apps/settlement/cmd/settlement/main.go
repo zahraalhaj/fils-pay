@@ -27,6 +27,7 @@ import (
 
 	"github.com/filspay/settlement/internal/config"
 	"github.com/filspay/settlement/internal/db"
+	"github.com/filspay/settlement/internal/integrity"
 	"github.com/filspay/settlement/internal/internalapi"
 	"github.com/filspay/settlement/internal/ledger"
 	"github.com/filspay/settlement/internal/scheduler"
@@ -95,6 +96,21 @@ func main() {
 
 		// FH: if internalapi fails to bind we log.Fatalf from the goroutine and skip the deferred pool.Close -- ok?
 		scheduler.Run(ctx, pool, cfg)
+
+	case "verify-integrity":
+		// Recomputes every ledger/audit anchor (migration 0085). Exit 1 on
+		// any mismatch so it can gate a cron alert or a release.
+		problems, err := integrity.Verify(ctx, pool)
+		if err != nil {
+			log.Fatalf("settlement verify-integrity: %v", err)
+		}
+		for _, p := range problems {
+			fmt.Printf("TAMPERED %s %s: %s\n", p.Table, p.Day.Format("2006-01-02"), p.Problem)
+		}
+		if len(problems) > 0 {
+			os.Exit(1)
+		}
+		fmt.Println("integrity: all anchored days intact")
 
 	case "run-batch":
 		fs := flag.NewFlagSet("run-batch", flag.ExitOnError)
@@ -231,5 +247,6 @@ func usage() {
 	fmt.Fprintln(os.Stderr, "  settlement run-batch --date=YYYY-MM-DD [--merchant=<uuid>]")
 	fmt.Fprintln(os.Stderr, "  settlement rebuild-balances [--merchant=<uuid>]")
 	fmt.Fprintln(os.Stderr, "  settlement export-scheme-file --batch=<uuid> --out=<path>")
+	fmt.Fprintln(os.Stderr, "  settlement verify-integrity")
 	fmt.Fprintln(os.Stderr, "  settlement healthcheck")
 }

@@ -3,7 +3,7 @@
 This is the plain-language version of [BUGS.md](BUGS.md). Each bug keeps the
 same number in both files, so you can look up the technical details there.
 
-**Total: 83 items** · ✅ 70 fixed · 🔴 3 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 10 not a bug
+**Total: 84 items** · ✅ 71 fixed · 🔴 3 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 10 not a bug
 
 Each heading starts with a running count (1, 2, 3 …). The number in brackets at the end, like (#15), is the bug's ID in [BUGS.md](BUGS.md); IDs were given in the order bugs were found, so they aren't in sequence.
 
@@ -593,3 +593,13 @@ server or the place cloud providers keep server passwords, and our server
 would send requests there. Now addresses that point inside a private network
 are refused when they're saved, and checked again before every single
 notification.
+
+### 79. ✅ Someone with database access could quietly change the books (#85)
+
+The money records and the staff activity log were protected by rules inside
+the database. But the same account the app uses could switch those rules off,
+change old amounts, and switch them back on, leaving no sign anything
+happened. Now, after each day ends, the system takes a fingerprint of that
+day's records and links it to the previous day's fingerprint, like a chain.
+A check command recomputes every fingerprint. If anyone has changed an old
+record, it names the exact day.

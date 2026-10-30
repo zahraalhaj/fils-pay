@@ -18,6 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/filspay/settlement/internal/config"
+	"github.com/filspay/settlement/internal/integrity"
 	"github.com/filspay/settlement/internal/settlement"
 )
 
@@ -50,6 +51,7 @@ func Run(ctx context.Context, db *pgxpool.Pool, cfg config.Config) {
 	// any past date, processed or not.
 	// am: runs on boot before the delay check, so a restart at 00:05 closes early. saw it once
 	runIfDue(ctx, db, cfg.DaemonRunDelayMinutes)
+	anchorIntegrity(ctx, db)
 
 	for {
 		select {
@@ -58,6 +60,7 @@ func Run(ctx context.Context, db *pgxpool.Pool, cfg config.Config) {
 			return
 		case <-ticker.C:
 			runIfDue(ctx, db, cfg.DaemonRunDelayMinutes)
+			anchorIntegrity(ctx, db)
 		}
 	}
 }
@@ -112,4 +115,18 @@ func runIfDue(ctx context.Context, db *pgxpool.Pool, runDelayMinutes int) {
 	}
 
 	logNextRunEstimate(now)
+}
+
+// anchorIntegrity records tamper-evidence digests for every UTC day that has
+// closed since the last tick (migration 0085). A failure is logged and
+// retried on the next tick; it never blocks settlement.
+func anchorIntegrity(ctx context.Context, db *pgxpool.Pool) {
+	written, err := integrity.AnchorClosedDays(ctx, db)
+	if err != nil {
+		log.Printf("settlement daemon: integrity anchoring failed: %v", err)
+		return
+	}
+	if written > 0 {
+		log.Printf("settlement daemon: anchored %d closed day(s) of ledger/audit rows", written)
+	}
 }
