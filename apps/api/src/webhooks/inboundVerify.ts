@@ -29,7 +29,7 @@ function parseAcquirerSignatureHeader(header: string): ParsedAcquirerSignatureHe
   return { timestamp, signature };
 }
 
-/** There is no timestamp reason: freshness is not checked for inbound callbacks. */
+/** Signature failures include the existing five-minute freshness check. */
 export type VerifyAcquirerCallbackFailureReason = "malformed_header" | "signature_mismatch" | "stale_timestamp";
 
 /** A signed callback older or newer than this is rejected, so a captured
@@ -54,6 +54,7 @@ export function verifyAcquirerCallbackSignature(
   secret: string,
   requireSignature = true,
   nowSeconds: number = Math.floor(Date.now() / 1000),
+  rawBody?: string,
 ): VerifyAcquirerCallbackResult {
   if (!header) {
     return requireSignature
@@ -68,7 +69,7 @@ export function verifyAcquirerCallbackSignature(
   }
 
   const expected = createHmac("sha256", secret)
-    .update(`${parsed.timestamp}.${JSON.stringify(payload)}`)
+    .update(`${parsed.timestamp}.${rawBody ?? JSON.stringify(payload)}`)
     .digest("hex");
 
   if (!constantTimeEquals(expected, parsed.signature)) {

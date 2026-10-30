@@ -10,7 +10,8 @@ export interface TransactionsExportFilters {
 }
 
 function csvEscape(value: string): string {
-  if (value.includes(",") || value.includes('"') || value.includes("\n")) {
+  if (/^\s*[=+@-]/.test(value) || /^[\t\r\n]/.test(value)) value = "'" + value;
+  if (value.includes(",") || value.includes('"') || value.includes("\n") || value.includes("\r")) {
     return `"${value.replace(/"/g, '""')}"`;
   }
   return value;

@@ -18,10 +18,10 @@ test("expiryReferenceTime: empty string -> the server's own clock", () => {
   assert.ok(Math.abs(resolved.getTime() - before) < TOLERANCE_MS);
 });
 
-test("expiryReferenceTime: a recent submittedAt (within the grace window) round-trips exactly", () => {
+test("expiryReferenceTime: a recent submittedAt cannot extend public expiry", () => {
   const now = new Date("2026-03-14T09:32:00.000Z");
   const iso = "2026-03-14T09:30:00.000Z";
-  assert.equal(expiryReferenceTime(iso, now).toISOString(), iso);
+  assert.equal(expiryReferenceTime(iso, now).toISOString(), now.toISOString());
 });
 
 test("expiryReferenceTime: an old or future submittedAt is not trusted (FP-187)", () => {

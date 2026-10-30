@@ -70,8 +70,9 @@ a `Webhook-Delivery-Id` and is signed with HMAC-SHA256.
 - Outbound webhook signatures are HMAC-SHA256 compared in constant time.
 - KYC uploads are validated by detected content type (magic bytes).
 
-Payment links are single-use. Expiry is checked against the paying client's
-clock when it sends `submittedAt` (offline terminals), otherwise the server's.
+Payment links are single-use. Public expiry uses server time; unauthenticated
+`submittedAt` is ignored. Reserved links require reconciliation after uncertain
+results or process failure (ADR-0007); timeout does not make them claimable.
 Tokens are 128-bit, from `crypto.randomBytes`.
 
 ## The admin plane

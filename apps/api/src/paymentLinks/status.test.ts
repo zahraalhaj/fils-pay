@@ -13,7 +13,7 @@ test("derivePublicStatus: stored 'active' with expires_at in the future -> 'acti
   );
 });
 
-/** Expiry is evaluated against server time here; pay.ts may use the client's clock instead. */
+/** Expiry is evaluated against server time here; pay.ts uses the same server clock. */
 test("derivePublicStatus: stored 'active' with expires_at in the past -> 'expired'", () => {
   assert.equal(
     derivePublicStatus({ status: "active", expiresAt: PAST, reservedAt: null }, TIMEOUT_SECONDS),
@@ -41,19 +41,19 @@ test("derivePublicStatus: stored 'reserved' still within the timeout -> 'process
   );
 });
 
-test("derivePublicStatus: stored 'reserved' past the timeout (self-healed) -> 'active'", () => {
+test("derivePublicStatus: stored 'reserved' past the timeout remains 'processing'", () => {
   const reservedAt = new Date(Date.now() - 120_000); // 2 minutes ago, past a 60s timeout
   assert.equal(
     derivePublicStatus({ status: "reserved", expiresAt: FUTURE, reservedAt }, TIMEOUT_SECONDS),
-    "active",
+    "processing",
   );
 });
 
-// boundary is exclusive on the reserved side (>), matches the claim UPDATE (<). consistent — MK
-test("derivePublicStatus: stored 'reserved' with reservedAt exactly at the timeout boundary self-heals to 'active'", () => {
+// Time passing never proves an in-flight payment safe to retry.
+test("derivePublicStatus: stored 'reserved' with reservedAt exactly at the timeout boundary remains 'processing'", () => {
   const reservedAt = new Date(Date.now() - TIMEOUT_SECONDS * 1000);
   assert.equal(
     derivePublicStatus({ status: "reserved", expiresAt: FUTURE, reservedAt }, TIMEOUT_SECONDS),
-    "active",
+    "processing",
   );
 });

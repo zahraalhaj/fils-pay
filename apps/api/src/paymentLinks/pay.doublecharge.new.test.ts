@@ -1,7 +1,7 @@
 /**
  * Incident 2026-05-14 / FP-202: a slow first payment outlived its
  * reservation, a second buyer re-claimed the link, and both were charged.
- * Now only the attempt that still holds the reservation can capture.
+ * Now a timed-out reservation stays owned and only the first buyer can capture.
  */
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -36,7 +36,7 @@ test.after(async () => {
 
 const CARD = { pan: "4242424242424242", expiryMonth: 12, expiryYear: 2030, cvv: "123" };
 
-test("a slow payer whose reservation was taken over can't also be charged", async () => {
+test("a second payer cannot take over an expired reservation", async () => {
   const m = await pool.query<{ id: string }>(`INSERT INTO merchants (display_name, mdr_bps) VALUES ($1, 250) RETURNING id`, [
     `Double charge ${randomUUID()}`,
   ]);
@@ -63,7 +63,7 @@ test("a slow payer whose reservation was taken over can't also be charged", asyn
     capture: (req) => real.capture(req),
     refund: (req) => real.refund(req),
   };
-  // A 1 s reservation, so A's has expired by the time B arrives.
+  // B arrives after the configured timeout; it must still be blocked.
   const linkConfig = { paymentLinkReservationTimeoutSeconds: 1 };
 
   const buyerA = payPaymentLink(pool, slowFirst, linkConfig, { token, card: CARD, idempotencyKey: randomUUID() });
@@ -71,8 +71,8 @@ test("a slow payer whose reservation was taken over can't also be charged", asyn
   const buyerB = await payPaymentLink(pool, slowFirst, linkConfig, { token, card: CARD, idempotencyKey: randomUUID() });
   const resultA = await buyerA;
 
-  assert.equal(buyerB.statusCode, 200, JSON.stringify(buyerB.body));
-  assert.equal(resultA.statusCode, 409, JSON.stringify(resultA.body));
+  assert.equal(buyerB.statusCode, 409, JSON.stringify(buyerB.body));
+  assert.equal(resultA.statusCode, 200, JSON.stringify(resultA.body));
 
   const txns = await pool.query<{ status: string; captured_fils: string }>(
     `SELECT status, captured_fils FROM transactions WHERE merchant_id = $1 ORDER BY created_at`,
@@ -80,7 +80,7 @@ test("a slow payer whose reservation was taken over can't also be charged", asyn
   );
   const captured = txns.rows.filter((t) => Number(t.captured_fils) > 0);
   assert.equal(captured.length, 1, `exactly one charge, got ${JSON.stringify(txns.rows)}`);
-  assert.ok(txns.rows.some((t) => t.status === "voided"), "the losing attempt's authorization is voided");
+  assert.equal(txns.rows.length, 1, "blocked buyer never authorizes");
 
   const paid = await pool.query<{ status: string; transaction_id: string }>(
     `SELECT status, transaction_id FROM payment_links WHERE id = $1`,

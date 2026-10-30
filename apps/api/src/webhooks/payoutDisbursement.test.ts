@@ -56,3 +56,14 @@ test("recordPayoutDisbursementEffect inserts one row with the given batch id and
   );
   assert.notEqual(result.rows[0]!.disbursement_reference, batchId);
 });
+
+test("concurrent and repeated payout effects retain exactly one instruction", async () => {
+  const batchId = await createPaidBatch(1500);
+  await Promise.all(Array.from({ length: 8 }, () => recordPayoutDisbursementEffect(pool, batchId, 1500)));
+  await recordPayoutDisbursementEffect(pool, batchId, 1500);
+  const result = await pool.query<{ amount_fils: string }>(
+    "SELECT amount_fils FROM settlement_payout_disbursements WHERE settlement_batch_id = $1", [batchId],
+  );
+  assert.equal(result.rows.length, 1);
+  assert.equal(Number(result.rows[0]!.amount_fils), 1500);
+});

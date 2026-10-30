@@ -290,8 +290,7 @@ test("list returns created payment links for the owning merchant", async () => {
 });
 
 test(
-  "idempotent replay after a reservation-timeout retry: a crashed pre-finalize attempt finalizes cleanly " +
-    "on retry without a second charge",
+  "a legacy captured reservation requires reconciliation instead of timeout replay",
   async () => {
     const { rawKey, merchantId } = await createApprovedMerchantWithApiKey("timeout-replay");
     const link = await createLink(rawKey, merchantId, { amountFils: 3_300 });
@@ -336,11 +335,11 @@ test(
     });
     assert.equal(capRes.statusCode, 200, JSON.stringify(capRes.body));
 
-    // The client now retries the pay() request with the SAME Idempotency-Key
-    // (reserved_at is already old enough for the claim UPDATE to re-admit it).
+    // A stored capture with no link binding is uncertain legacy state.
+    // Time passing cannot make this link safe to claim, even with the same key.
     const retryRes = await pay(link.token, APPROVED_CARD, idempotencyKey);
-    assert.equal(retryRes.statusCode, 200, retryRes.body);
-    assert.equal(retryRes.json().transactionId, txnId);
+    assert.equal(retryRes.statusCode, 409, retryRes.body);
+    assert.equal(retryRes.json().error, "payment_link_processing");
 
     // Exactly one transaction exists for this merchant — the retry replayed
     // the prior authorize/capture via idempotency, it did not double-charge.
@@ -353,7 +352,7 @@ test(
       `SELECT status, transaction_id FROM payment_links WHERE id = $1`,
       [row.id],
     );
-    assert.equal(finalLink.rows[0]!.status, "paid");
-    assert.equal(finalLink.rows[0]!.transaction_id, txnId);
+    assert.equal(finalLink.rows[0]!.status, "reserved");
+    assert.equal(finalLink.rows[0]!.transaction_id, null);
   },
 );

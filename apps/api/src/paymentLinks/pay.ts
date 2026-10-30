@@ -31,23 +31,9 @@ interface LinkStatusRow {
   expires_at: Date;
 }
 
-/** How far back a client-reported `submittedAt` is trusted. */
-export const SUBMITTED_AT_GRACE_MS = 5 * 60 * 1000;
-
-/**
- * A pay request is judged against when the buyer pressed pay, so a retry
- * that lands just after expiry is not penalised. The client's clock is only
- * trusted within SUBMITTED_AT_GRACE_MS of the server's and never in the
- * future; otherwise the server's clock is used. This public endpoint is
- * unauthenticated, so an unbounded `submittedAt` let anyone pay an expired
- * link by claiming an old time (FP-187).
- */
-export function expiryReferenceTime(submittedAt?: string, now: Date = new Date()): Date {
-  if (!submittedAt) return now;
-  const parsed = new Date(submittedAt);
-  if (Number.isNaN(parsed.getTime())) return now;
-  if (parsed.getTime() > now.getTime() || now.getTime() - parsed.getTime() > SUBMITTED_AT_GRACE_MS) return now;
-  return parsed;
+/** Public checkout cannot attest a client timestamp. Always use server time. */
+export function expiryReferenceTime(_submittedAt?: string, now: Date = new Date()): Date {
+  return now;
 }
 
 /**
@@ -56,13 +42,10 @@ export function expiryReferenceTime(submittedAt?: string, now: Date = new Date()
  * then `captureTransaction` directly, in sequence, never issuing an HTTP
  * request back into the API's own /v1/transactions routes.
  *
- * Concurrency: the claim reserves the link under a fresh reservation_id.
- * Capture then locks the link, refuses unless this attempt still holds that
- * reservation, and marks the link paid in the same transaction as the
- * capture. A slow attempt whose reservation timed out and was re-claimed
- * can therefore no longer capture (its authorization is voided), and a
- * re-claim can't overlap a capture in flight (it waits on the row lock and
- * then finds the link paid). Incident 2026-05-14 / FP-202.
+ * Concurrency: retain Zahra's reservation ownership and atomic capture/link
+ * update. Reserved links cannot be reclaimed by elapsed time: an unknown
+ * processor result or process crash requires reconciliation before release.
+ * A lost ownership check still voids the authorization without capturing.
  */
 export async function payPaymentLink(
   pool: Pool,
@@ -79,13 +62,10 @@ export async function payPaymentLink(
     `UPDATE payment_links
         SET status = 'reserved', reserved_at = now(), reservation_id = gen_random_uuid()
       WHERE token = $1
-        AND (
-             status = 'active'
-             OR (status = 'reserved' AND reserved_at < now() - ($2 || ' seconds')::interval)
-            )
-        AND expires_at > $3
+        AND status = 'active'
+        AND expires_at > $2
       RETURNING id, reservation_id, merchant_id, amount_fils, reference`,
-    [input.token, config.paymentLinkReservationTimeoutSeconds, expiryCheckTime],
+    [input.token, expiryCheckTime],
   );
 
   const claimedRow = claimResult.rows[0];
@@ -116,7 +96,8 @@ export async function payPaymentLink(
   });
 
   if (authResult.statusCode !== 201) {
-    await releaseReservation(pool, link.id, link.reservationId);
+    // Unknown authorization results keep ownership for reconciliation.
+    if (authResult.statusCode === 402) await releaseReservation(pool, link.id, link.reservationId);
     return {
       statusCode: authResult.statusCode,
       body: { stage: "authorize", ...(authResult.body as Record<string, unknown>) },
@@ -150,7 +131,8 @@ export async function payPaymentLink(
   }
 
   if (captureResult.statusCode !== 200) {
-    await releaseReservation(pool, link.id, link.reservationId);
+    // A timeout/error cannot prove that no charge occurred.
+    if (captureResult.statusCode === 402) await releaseReservation(pool, link.id, link.reservationId);
     return {
       statusCode: captureResult.statusCode,
       body: { stage: "capture", ...(captureResult.body as Record<string, unknown>) },
@@ -203,7 +185,7 @@ async function releaseReservation(pool: Pool, linkId: string, reservationId: str
 async function classifyClaimFailure(
   pool: Pool,
   token: string,
-  reservationTimeoutSeconds: number,
+  _reservationTimeoutSeconds: number,
   expiryCheckTime: Date,
 ): Promise<PayPaymentLinkResult> {
   const result = await pool.query<LinkStatusRow>(`SELECT status, expires_at FROM payment_links WHERE token = $1`, [
@@ -224,10 +206,7 @@ async function classifyClaimFailure(
     return { statusCode: 410, body: { error: "payment_link_expired" } };
   }
   if (row.status === "reserved") {
-    // A concurrent claim attempt raced us and won between our own UPDATE's
-    // failure and this SELECT. It's still within the timeout (if it
-    // weren't, our claim UPDATE would have matched it) — reachable only in
-    // a genuine race, not a stale read.
+    // Elapsed time cannot establish that a processor call had no effect.
     return { statusCode: 409, body: { error: "payment_link_processing" } };
   }
   // Defensive fallback, should be unreachable given the claim UPDATE's

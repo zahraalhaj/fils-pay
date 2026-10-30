@@ -532,3 +532,16 @@ and never finished. **Status: built and working end to end, except hosting.**
   to a bug number in [BUGS.md](BUGS.md).
 - **Test data:** running the automated tests adds hundreds of fake shops to the
   local database. `npm run seed` resets it.
+
+## Follow-up after Zahra's push
+
+- **#34 / #76 — Callback security:** the API now checks the exact message bytes the sender signed. It rejects invalid callback fields and cannot turn callback authentication off in production.
+- **#48 — Expired payment links:** the server clock decides expiry. A customer cannot extend a link by claiming they pressed pay earlier.
+- **#77 — Spreadsheet exports:** customer references starting with formula characters stay text when opened in a spreadsheet. Both export paths share the correction.
+- **#78 — Payout instructions:** repeated or concurrent webhook attempts use the same batch lock and do not create a second instruction. Existing records are preserved.
+- **#79 — Webhook responses:** redirects are not followed. The API retains at most 64 KiB from a receiver and stops reading afterward.
+- **#80 — Uncertain payments:** a timeout does not mean no payment happened. The link stays processing until the attempt is reconciled; another buyer cannot take it over just because time passed. Explicit declines can release the reservation.
+
+These additions retain Zahra's existing report access, credit approval, key
+rotation overlap, outbound signing, streaming export and atomic capture fixes.
+See docs/reviews/2026-10-30-post-zahra-gaps.md for checks and remaining limits.
