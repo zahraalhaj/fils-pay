@@ -55,7 +55,9 @@ export async function buildTransactionsExportCsv(
 export async function* iterateTransactionsExportCsv(
   pool: Pool,
   filters: TransactionsExportFilters,
+  pageSize = 1000,
 ): AsyncGenerator<string> {
+  if (!Number.isSafeInteger(pageSize) || pageSize <= 0) throw new RangeError("invalid export page size");
   const client = await pool.connect();
   let broken: Error | undefined;
   try {
@@ -73,9 +75,9 @@ export async function* iterateTransactionsExportCsv(
     );
     yield "id,status,amount_bhd,captured_bhd,reference,occurred_at\n";
     while (true) {
-      const result = await client.query<TransactionRow>("FETCH FORWARD 1000 FROM filspay_export");
+      const result = await client.query<TransactionRow>(`FETCH FORWARD ${pageSize} FROM filspay_export`);
       for (const row of result.rows) yield toCsvRow(row) + "\n";
-      if (result.rows.length < 1000) break;
+      if (result.rows.length < pageSize) break;
     }
   } finally {
     // Also closes the cursor if the HTTP consumer disconnects early.
@@ -90,6 +92,7 @@ export async function streamTransactionsExportCsv(
   pool: Pool,
   filters: TransactionsExportFilters,
   write: (chunk: string) => void | Promise<void>,
+  pageSize = 1000,
 ): Promise<void> {
-  for await (const chunk of iterateTransactionsExportCsv(pool, filters)) await write(chunk);
+  for await (const chunk of iterateTransactionsExportCsv(pool, filters, pageSize)) await write(chunk);
 }

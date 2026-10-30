@@ -26,3 +26,12 @@ sandbox mode is available only outside production.
 
 This deliberately replaces tests that encoded acceptance of backdated checkout
 requests and unsigned/stale callbacks. Those expectations were security defects.
+
+## Integrated durable payer claims
+
+The upstream PR integration adds persisted hashed payer/request ownership and
+reuses persistent authorize/capture idempotency records. After the lease expires,
+only that exact payer request may resume; another payer cannot reclaim the link.
+Legacy reservations without ownership remain blocked for reconciliation. This
+supersedes the restriction on same-request recovery above while preserving the
+prohibition on releasing uncertain charges for a different payment attempt.

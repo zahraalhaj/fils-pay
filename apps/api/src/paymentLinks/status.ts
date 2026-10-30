@@ -1,4 +1,16 @@
-/** Public status mirrors the server's non-expiring payment reservation. */
+/**
+ * Derived public status for a payment link — computed identically by
+ * GET /v1/payment-links/:token (read.ts) and by the pay endpoint's
+ * claim-failure classification (pay.ts), from one shared helper, so the
+ * two endpoints can never disagree about what state a link is "really" in.
+ *
+ * Deliberately narrower than the stored `payment_links.status` enum: a
+ * customer-facing checkout page must keep a reserved link 'processing',
+ * including after timeout: only the original payer may resume. A merchant-facing
+ * list (query.ts) uses the raw stored status instead, since a dashboard
+ * operator does benefit from seeing "a payment is currently in flight" as
+ * its own filterable state.
+ */
 export type PublicPaymentLinkStatus = "active" | "processing" | "paid" | "expired" | "canceled";
 
 /** A missing reservation timestamp does not make an in-flight charge safe to retry. */
@@ -21,6 +33,7 @@ export function derivePublicStatus(
     return row.expiresAt.getTime() <= Date.now() ? "expired" : "active";
   }
 
-  // A reserved charge needs reconciliation, regardless of elapsed time.
+  // row.status === 'reserved'
+  // Timeout never makes a reservation available to a different payer.
   return "processing";
 }

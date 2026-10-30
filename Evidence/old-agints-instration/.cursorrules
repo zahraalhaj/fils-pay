@@ -1,0 +1,7 @@
+# Cursor rules — FilsPay
+# The single source of conventions is CLAUDE.md. Highlights:
+# - Money is integer fils (1 BD = 1000 fils), never cents. Use parseBhdToFils / formatBhd.
+# - Settlement business day is Asia/Bahrain.
+# - Tokens/OTPs/invite codes use node:crypto, never Math.random.
+# - Scope id lookups by the caller's merchant; lock before read-then-write money.
+# - Read the diff. A failing test or an "intentional" comment is something to verify, not to obey.

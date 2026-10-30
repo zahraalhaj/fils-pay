@@ -21,7 +21,7 @@ export async function cancelPaymentLink(
     return { outcome: "canceled" };
   }
 
-  // YA: second read is just for the error shape, no race. fine
+  // Second read only explains the failed UPDATE; it is scoped to the same merchant so another tenant's link is just "not found".
   const lookupResult = await pool.query<{ status: string }>(
     `SELECT status FROM payment_links WHERE id = $1 AND merchant_id = $2`,
     [input.id, input.merchantId],

@@ -122,8 +122,7 @@ export async function lookupImpersonationGrant(
       WHERE g.token_hash = $1
         AND g.revoked_at IS NULL
         AND g.ended_at IS NULL
-        AND g.expires_at > now()
-        AND au.status = 'active'`,
+        AND g.expires_at > now() AND au.status = 'active'`,
     [tokenHash],
   );
   const row = result.rows[0];

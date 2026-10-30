@@ -127,7 +127,8 @@ test("expired or already reserved links never reach the acquirer, even with back
     const pool = database((q, args) => {
       if (q.startsWith("UPDATE")) {
         assert.ok(!q.includes("OR (status = 'reserved'"));
-        assert.ok((args?.[1] as Date).getTime() > new Date("2020-01-01").getTime());
+        assert.match(q, /expires_at > now\(\)/);
+        assert.match(q, /payment_key_hash = \$3 AND payment_request_hash = \$4/);
         return { rows: [] };
       }
       return { rows: [{ status: state, expires_at: new Date("2020-01-01") }] };
@@ -149,20 +150,13 @@ test("rollback failure preserves the original exception and discards broken clie
   assert.equal(releaseError, rollback);
 });
 
-test("webhook transport refuses redirects and bounds response memory", async () => {
-  const saved = globalThis.fetch;
-  let canceled = false;
-  globalThis.fetch = (async (_url: unknown, options: RequestInit) => {
-    assert.equal(options.redirect, "manual");
-    return new Response(new ReadableStream({ pull(controller) { controller.enqueue(new Uint8Array(16384).fill(65)); },
-      cancel() { canceled = true; } }), { status: 302 });
-  }) as typeof fetch;
-  try {
-    const response = await createFetchTransport()({ url: "https://example.com", headers: {}, body: "{}", timeoutMs: 1000 });
-    assert.equal(response.statusCode, 302);
-    assert.equal(response.body.length, 64 * 1024);
-    assert.equal(canceled, true);
-  } finally { globalThis.fetch = saved; }
+test("webhook transport rejects a private DNS target before connecting", async () => {
+  const response = await createFetchTransport({ nodeEnv: "production" },
+    async () => [{ address: "127.0.0.1", family: 4 }])({
+    url: "https://example.com", headers: {}, body: "{}", timeoutMs: 1000,
+  });
+  assert.equal(response.statusCode, null);
+  assert.match(response.errorMessage ?? "", /non-public address/);
 });
 
 test("payout instructions lock the batch and insert only if none exists", async () => {

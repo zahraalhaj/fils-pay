@@ -132,9 +132,14 @@ function assertRawBodySignature(request: WebhookTransportRequest): void {
 
 test("dispatcher signs its actual bytes, including nested keys and Unicode", async () => {
   const sent: WebhookTransportRequest[] = [];
+  let claimed = false;
   const query = async (sql: string) => {
+    if (sql.includes("WITH claimed AS")) {
+      if (claimed) return { rows: [] };
+      claimed = true;
+    }
     if (sql.includes("SELECT oe.id AS outbox_event_id")) return { rows: [] };
-    if (sql.includes("SELECT wd.id")) return { rows: [{
+    if (sql.includes("SELECT wd.id") || sql.includes("WITH claimed AS")) return { rows: [{
       id: "delivery", endpoint_id: "endpoint", event_type: "refund.succeeded",
       delivery_event_id: "event", attempt_count: 0, url: "https://receiver.invalid",
       secret_ciphertext: ciphertext,
