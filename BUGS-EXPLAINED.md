@@ -3,7 +3,7 @@
 This is the plain-language version of [BUGS.md](BUGS.md). Each bug keeps the
 same number in both files, so you can look up the technical details there.
 
-**Total: 81 items** · ✅ 68 fixed · 🔴 3 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 10 not a bug
+**Total: 82 items** · ✅ 69 fixed · 🔴 3 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 10 not a bug
 
 Each heading starts with a running count (1, 2, 3 …). The number in brackets at the end, like (#15), is the bug's ID in [BUGS.md](BUGS.md); IDs were given in the order bugs were found, so they aren't in sequence.
 
@@ -571,3 +571,15 @@ had been added. It hadn't. Also, restarting the server during a payout run cut
 it off halfway through a shop. Now only one run can happen at a time (a second
 one is politely refused), and a restart lets the current shop finish before
 stopping.
+
+### 77. ✅ The database was open to the internet and there was no front door (#83)
+
+The only setup file for running FilsPay on a server opened the database and
+the API directly to the internet, with the database password written in the
+file. There was no "front door" server to send visitors to the right app,
+refuse floods of requests, or add the browser safety settings every payment
+site needs. We added one (nginx). It is now the only thing reachable from the
+internet. The database and the background services can't be reached from
+outside at all. Too many requests from one address get a polite "slow down",
+and if the system is struggling, visitors get a quick "try again shortly"
+instead of a page that hangs.

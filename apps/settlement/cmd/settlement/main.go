@@ -17,6 +17,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -45,6 +46,11 @@ func main() {
 	if len(os.Args) < 2 {
 		usage()
 		os.Exit(2)
+	}
+	// Container healthcheck for the distroless image (no shell or curl):
+	// asks the running daemon's internal server, needs no config or DB.
+	if os.Args[1] == "healthcheck" {
+		os.Exit(healthcheck())
 	}
 
 	cfg, err := config.Load()
@@ -200,10 +206,30 @@ func main() {
 }
 
 // usage lists every operation the settlement service supports.
+func healthcheck() int {
+	port := os.Getenv("SETTLEMENT_INTERNAL_PORT")
+	if port == "" {
+		port = "8091"
+	}
+	client := http.Client{Timeout: 3 * time.Second}
+	resp, err := client.Get("http://127.0.0.1:" + port + "/healthz")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "healthcheck:", err)
+		return 1
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		fmt.Fprintln(os.Stderr, "healthcheck: status", resp.StatusCode)
+		return 1
+	}
+	return 0
+}
+
 func usage() {
 	fmt.Fprintln(os.Stderr, "usage:")
 	fmt.Fprintln(os.Stderr, "  settlement daemon")
 	fmt.Fprintln(os.Stderr, "  settlement run-batch --date=YYYY-MM-DD [--merchant=<uuid>]")
 	fmt.Fprintln(os.Stderr, "  settlement rebuild-balances [--merchant=<uuid>]")
 	fmt.Fprintln(os.Stderr, "  settlement export-scheme-file --batch=<uuid> --out=<path>")
+	fmt.Fprintln(os.Stderr, "  settlement healthcheck")
 }

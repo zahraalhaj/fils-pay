@@ -1,0 +1,128 @@
+# Production stack. Only `proxy` publishes a port; api, settlement,
+# reporting and postgres are reachable only on the internal network.
+#
+#   cp ops/.env.prod.example ops/.env.prod   # fill in every secret
+#   ops/deploy.sh                            # build, migrate, roll out
+#
+# Secrets come from ops/.env.prod (never committed; see .gitignore). Every
+# required one uses ${VAR:?}, so compose refuses to start without it.
+
+name: filspay
+
+x-restart: &restart
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "5" }
+
+x-db-url: &db_url postgres://filspay:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in ops/.env.prod}@postgres:5432/filspay
+
+services:
+  proxy:
+    <<: *restart
+    build: { context: .., dockerfile: ops/Dockerfile.proxy }
+    ports:
+      - "${PUBLIC_BIND:-127.0.0.1}:${PUBLIC_PORT:-8080}:8080"
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [edge]
+    deploy: { resources: { limits: { cpus: "0.25", memory: 128m } } }
+
+  api:
+    <<: *restart
+    build: { context: .., dockerfile: ops/Dockerfile.node }
+    command: ["npx", "tsx", "apps/api/src/index.ts"]
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: *db_url
+      TRUST_PROXY_HOPS: "1"
+      SETTLEMENT_INTERNAL_URL: http://settlement:8091
+      SETTLEMENT_INTERNAL_TOKEN: ${SETTLEMENT_INTERNAL_TOKEN:?set SETTLEMENT_INTERNAL_TOKEN}
+      ACQUIRER_CALLBACK_SIGNING_SECRET: ${ACQUIRER_CALLBACK_SIGNING_SECRET:?set ACQUIRER_CALLBACK_SIGNING_SECRET}
+      WEBHOOK_SECRET_ENCRYPTION_KEY: ${WEBHOOK_SECRET_ENCRYPTION_KEY:?set WEBHOOK_SECRET_ENCRYPTION_KEY}
+      CHECKOUT_BASE_URL: ${CHECKOUT_BASE_URL:?set CHECKOUT_BASE_URL}
+      SMTP_URL: ${SMTP_URL:-}
+      OTP_FROM_EMAIL: ${OTP_FROM_EMAIL:-}
+      OTP_SHOW_ON_SCREEN: ${OTP_SHOW_ON_SCREEN:-false}
+      PG_POOL_MAX: ${API_PG_POOL_MAX:-10}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    networks: [edge, internal]
+    deploy: { resources: { limits: { cpus: "0.5", memory: 512m } } }
+
+  settlement:
+    <<: *restart
+    build: { context: .., dockerfile: ops/Dockerfile.go }
+    command: ["./settlement", "daemon"]
+    environment:
+      DATABASE_URL: *db_url
+      SETTLEMENT_INTERNAL_TOKEN: ${SETTLEMENT_INTERNAL_TOKEN:?set SETTLEMENT_INTERNAL_TOKEN}
+    healthcheck:
+      test: ["CMD", "./settlement", "healthcheck"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    # On redeploy the daemon gets SIGTERM, finishes the merchant it is
+    # closing (RunDailyBatch, #82) and exits; this is how long it may take
+    # before Docker kills it. Runs are a cluster-wide singleton (advisory
+    # lock), so the replacement never overlaps an unfinished run.
+    stop_grace_period: 10m
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    networks: [internal]
+
+  reporting:
+    <<: *restart
+    build: { context: .., dockerfile: ops/Dockerfile.node }
+    command: ["npx", "tsx", "apps/reporting/src/index.ts"]
+    environment:
+      DATABASE_URL: *db_url
+    stop_grace_period: 30s
+    depends_on:
+      postgres: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    networks: [internal]
+
+  migrate:
+    build: { context: .., dockerfile: ops/Dockerfile.node }
+    command: ["npx", "tsx", "db/migrate.ts"]
+    environment:
+      DATABASE_URL: *db_url
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [internal]
+    restart: "no"
+
+  postgres:
+    <<: *restart
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: filspay
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: filspay
+    volumes:
+      - filspay_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U filspay -d filspay"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [internal]
+    # No ports: the database is never reachable from outside the stack.
+
+networks:
+  edge: {}
+  internal:
+    internal: true   # no route to the internet from this network
+
+volumes:
+  filspay_pgdata: {}

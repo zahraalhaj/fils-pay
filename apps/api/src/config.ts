@@ -10,6 +10,10 @@
 export interface Config {
   nodeEnv: "development" | "test" | "production";
   port: number;
+  /** Reverse-proxy hops to trust for X-Forwarded-For/-Proto (TRUST_PROXY_HOPS).
+   *  0 = none: request.ip is the socket peer. Set to 1 behind ops/nginx so
+   *  audit rows record the client's address, not the proxy's. */
+  trustProxyHops: number;
   databaseUrl: string;
 
   pgPoolMax: number;
@@ -221,6 +225,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     nodeEnv,
     port: parseIntEnv(env.PORT, 3000),
+    trustProxyHops: parseIntEnv(env.TRUST_PROXY_HOPS, 0),
     databaseUrl,
 
     pgPoolMax: parseIntEnv(env.PG_POOL_MAX, 5),

@@ -75,3 +75,29 @@ limited to 512 MB. Postgres defaults are fine at this size. The settlement
 image is built on the box with `go build` from `Dockerfile.go`.
 
 > **AM:** first build on the box filled the disk (go build cache). cleared it and it went through on the second try
+
+## Production stack (`docker-compose.prod.yml`)
+
+```
+Internet ─TLS─▶ platform edge ─▶ proxy :8080 (nginx, ops/nginx/filspay.conf)
+                                   ├─ /, /pay/*, /dashboard/*  → apps/web build
+                                   ├─ /admin/*                 → apps/admin build
+                                   └─ /v1/*, /healthz          → api:3000
+   internal network only (no internet route, no published ports):
+     api :3000 · settlement :8091 · reporting · postgres :5432
+```
+
+| Concern | How |
+|---|---|
+| Redeploy | `ops/deploy.sh` — builds first, migrates, rolls out, waits for health |
+| Secrets | `ops/.env.prod` on the server (never committed; template `.env.prod.example`); compose refuses to start if one is missing |
+| Exposure | Only `proxy` publishes a port (`PUBLIC_BIND`, default 127.0.0.1). Postgres, api, settlement and reporting have none; the `internal` network has no internet route |
+| Overload | nginx per-IP limits: `/v1` 20 r/s (burst 40), `/v1/(admin/)auth` 10 r/min (burst 10), public checkout 5 r/s (burst 20), 50 connections/IP → **429** + `Retry-After`. API down or slow → **503** + `Retry-After` within 3 s. POSTs are never retried upstream |
+| Health | api `/readyz`, settlement `./settlement healthcheck` (→ `/healthz`, pings the DB), proxy `/healthz`, postgres `pg_isready`; all `restart: unless-stopped` |
+| Settlement during redeploy | SIGTERM → the merchant in progress finishes, the run stops (`stop_grace_period: 10m`); runs are an advisory-locked singleton, so the new daemon can't overlap (#82) |
+| Headers | HSTS, CSP, `X-Frame-Options: DENY`, `nosniff`, Referrer/Permissions policies on every response |
+| Client IP | nginx sets `X-Forwarded-For`; api `TRUST_PROXY_HOPS=1` so audit rows record the client, not the proxy |
+| Resources | api 0.5 vCPU / 512 MB, proxy 0.25 vCPU / 128 MB; logs rotated (5 × 10 MB) |
+
+The admin console is built with `--base=/admin/`; its router also needs
+`basename: "/admin"` (frontend change, pending).

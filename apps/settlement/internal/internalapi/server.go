@@ -114,10 +114,19 @@ type errorResponse struct {
 // Serve so tests can exercise the routes over httptest without binding a
 // fixed port.
 //
-// Every route requires the bearer token; this server has no unauthenticated
-// health route.
+// Every route requires the bearer token except GET /healthz, which only
+// reports whether the database answers (used by the container healthcheck).
 func Handler(pool *pgxpool.Pool, cfg config.Config) http.Handler {
 	mux := http.NewServeMux()
+	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := pool.Ping(ctx); err != nil {
+			writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: "database_unreachable"})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	})
 	mux.Handle("/internal/run-batch", requireBearerToken(cfg.InternalToken, requirePost(handleRunBatch(pool))))
 	mux.Handle("/internal/rebuild-balances", requireBearerToken(cfg.InternalToken, requirePost(handleRebuildBalances(pool))))
 	// FH: recalculate-mdr is 'safe' per ADMIN.md -- finance runs it after every rate change
