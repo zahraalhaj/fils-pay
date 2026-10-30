@@ -1,0 +1,113 @@
+# Every push and pull request: typecheck, a fresh-database migration, every
+# TypeScript and Go test suite against real Postgres, and the production
+# edge config. Each job gets its own throwaway Postgres, so suites never
+# share fixtures (the shared dev DB pollution behind #42).
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24"
+  DATABASE_URL: postgres://filspay:ci@localhost:5432/filspay
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - run: npm run typecheck
+
+  # One job (and one fresh Postgres) per suite: suites leave fixtures behind,
+  # and e.g. the API suite's deliberately malformed outbox events would
+  # otherwise reach the reporting suite (#42).
+  typescript-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ["-w packages/money", "-w packages/events", "-w apps/api", "-w apps/reporting", "-w apps/web", "scripts"]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: filspay, POSTGRES_PASSWORD: ci, POSTGRES_DB: filspay }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U filspay" --health-interval 2s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
+      - run: npm ci --no-audit --no-fund
+      - name: Migrate an empty database (catches broken migrations, #81)
+        run: npm run migrate
+      - name: test ${{ matrix.suite }}
+        run: |
+          if [ "${{ matrix.suite }}" = scripts ]; then npx tsx --test scripts/*.test.ts
+          else npm test ${{ matrix.suite }}; fi
+
+  go-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: filspay, POSTGRES_PASSWORD: ci, POSTGRES_DB: filspay }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U filspay" --health-interval 2s --health-retries 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}", cache: npm }
+      - uses: actions/setup-go@v5
+        with: { go-version-file: apps/settlement/go.mod, cache-dependency-path: apps/settlement/go.sum }
+      - run: npm ci --no-audit --no-fund
+      - run: npm run migrate
+      - name: go vet + test (DB-backed tests run, not skip)
+        working-directory: apps/settlement
+        run: |
+          go vet ./...
+          go test ./...
+
+  edge-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: nginx -t on the production proxy config
+        run: |
+          docker run --rm --add-host api:127.0.0.1 \
+            -v "$PWD/ops/nginx/filspay.conf:/etc/nginx/conf.d/default.conf:ro" \
+            -v "$PWD/ops/nginx/snippets:/etc/nginx/snippets:ro" \
+            nginx:1.27-alpine nginx -t
+      - name: production compose resolves, and refuses to start without secrets
+        run: |
+          sed -e 's/^POSTGRES_PASSWORD=$/POSTGRES_PASSWORD=x/' \
+              -e 's/^SETTLEMENT_INTERNAL_TOKEN=$/SETTLEMENT_INTERNAL_TOKEN=x/' \
+              -e 's/^ACQUIRER_CALLBACK_SIGNING_SECRET=$/ACQUIRER_CALLBACK_SIGNING_SECRET=x/' \
+              -e 's/^WEBHOOK_SECRET_ENCRYPTION_KEY=$/WEBHOOK_SECRET_ENCRYPTION_KEY=x/' \
+              ops/.env.prod.example > /tmp/ci.env
+          docker compose --env-file /tmp/ci.env -f ops/docker-compose.prod.yml config --quiet
+          ! docker compose --env-file ops/.env.prod.example -f ops/docker-compose.prod.yml config --quiet
+
+  # Reports, does not block yet: 2 high (nodemailer, sharp) and 4 moderate
+  # advisories are open; upgrading them rewrites package-lock.json alongside
+  # the in-progress frontend work (BUGS.md #87). Flip to blocking after.
+  dependency-audit:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "${{ env.NODE_VERSION }}" }
+      - name: npm audit (high and critical)
+        run: npm audit --omit=dev --audit-level=high

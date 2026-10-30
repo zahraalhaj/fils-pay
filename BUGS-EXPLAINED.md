@@ -3,7 +3,7 @@
 This is the plain-language version of [BUGS.md](BUGS.md). Each bug keeps the
 same number in both files, so you can look up the technical details there.
 
-**Total: 84 items** · ✅ 71 fixed · 🔴 3 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 10 not a bug
+**Total: 86 items** · ✅ 72 fixed · 🔴 4 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 10 not a bug
 
 Each heading starts with a running count (1, 2, 3 …). The number in brackets at the end, like (#15), is the bug's ID in [BUGS.md](BUGS.md); IDs were given in the order bugs were found, so they aren't in sequence.
 
@@ -603,3 +603,20 @@ happened. Now, after each day ends, the system takes a fingerprint of that
 day's records and links it to the previous day's fingerprint, like a chain.
 A check command recomputes every fingerprint. If anyone has changed an old
 record, it names the exact day.
+
+### 80. ✅ Rebuilding the reports could fail because of one bad record (#86)
+
+There's a command that rebuilds all report numbers from scratch by replaying
+every past event. If even one old event was damaged, the whole rebuild
+stopped with an error, so the reports could never be rebuilt. Now damaged
+events are set aside in a separate list (the same way the live reports
+worker already handles them), and the rebuild finishes and says how many
+were skipped.
+
+### 81. 🔴 Some third-party software we use has known security issues (#87)
+
+The security checker lists 2 serious and 4 medium known issues in libraries
+FilsPay uses, including the one that sends emails. **Not fixed yet:**
+upgrading them changes a shared file that the design work in progress also
+changes, so we'll upgrade right after that work is merged. Our automatic
+checks now report this on every change.

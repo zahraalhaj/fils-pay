@@ -55,11 +55,16 @@ export async function runRebuild(pool: Pool, config: ReportingConfig): Promise<v
     await resetCursor(client, CONSUMER_NAME);
   });
 
+  // The isolating pass (same one the worker falls back to) dead-letters a
+  // malformed event instead of aborting: one bad row must not make the
+  // whole read model unrebuildable.
   let totalProcessed = 0;
+  let totalDeadLettered = 0;
   for (;;) {
-    const { processedCount } = await runConsumerPass(pool, config);
+    const { processedCount, deadLetteredCount } = await runConsumerPass(pool, config, { isolateFailures: true });
     totalProcessed += processedCount;
-    if (processedCount === 0) break;
+    totalDeadLettered += deadLetteredCount ?? 0;
+    if (processedCount + (deadLetteredCount ?? 0) === 0) break;
   }
 
   // TODO: diff against apps/api admin/reportingRebuild.ts output (YA 2026-02)
@@ -68,4 +73,7 @@ export async function runRebuild(pool: Pool, config: ReportingConfig): Promise<v
     `[reporting/rebuild] after:  merchant_daily_volume=${after.volumeRows} rows, merchant_payout_trends=${after.trendRows} rows`,
   );
   console.log(`[reporting/rebuild] replayed ${totalProcessed} event(s) total`);
+  if (totalDeadLettered > 0) {
+    console.warn(`[reporting/rebuild] ${totalDeadLettered} malformed event(s) skipped; see reporting_dead_letters`);
+  }
 }
