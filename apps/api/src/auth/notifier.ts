@@ -17,7 +17,7 @@ export interface MinimalLogger {
 /** Shared by the merchant and admin notifiers. */
 export async function deliverOtpCode(
   logger: MinimalLogger,
-  config: Pick<Config, "nodeEnv" | "smtpUrl" | "otpFromEmail">,
+  config: Pick<Config, "nodeEnv" | "smtpUrl" | "otpFromEmail"> & Partial<Pick<Config, "otpDevExpose">>,
   recipient: { email: string; logFields: Record<string, unknown> },
   code: string,
   mailer: Mailer | null = getMailer(config),
@@ -38,6 +38,11 @@ export async function deliverOtpCode(
     return;
   }
   if (config.nodeEnv === "production") {
+    // The login response carries the code (OTP_SHOW_ON_SCREEN); keep it out of the logs.
+    if (config.otpDevExpose) {
+      logger.info(recipient.logFields, "otp code shown on screen (no SMTP configured)");
+      return;
+    }
     // Unreachable: loadConfig refuses to start production without SMTP_URL.
     throw new InternalError("otp_delivery_unconfigured");
   }
@@ -46,7 +51,7 @@ export async function deliverOtpCode(
 
 export async function sendOtpCode(
   logger: MinimalLogger,
-  config: Pick<Config, "nodeEnv" | "smtpUrl" | "otpFromEmail">,
+  config: Pick<Config, "nodeEnv" | "smtpUrl" | "otpFromEmail"> & Partial<Pick<Config, "otpDevExpose">>,
   recipient: { merchantUserId: string; email: string },
   code: string,
   mailer?: Mailer | null,

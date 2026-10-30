@@ -62,7 +62,7 @@ first.
 | api | `WEBHOOK_SECRET_ENCRYPTION_KEY` | only outside dev; a dev key is used otherwise |
 | api | `ACQUIRER_CALLBACK_SIGNING_SECRET`, `NODE_ENV` | `.env.docker` (`env_file`) |
 | api, settlement | `SETTLEMENT_INTERNAL_TOKEN` (must match) | `environment:`; defaults to `dev-token` — set a real one when hosted |
-| api | `SMTP_URL` (and optional `OTP_FROM_EMAIL`) | **required in production** — login codes are emailed and there is no other delivery. Local: run Mailpit (`docker run -d -p 1025:1025 -p 8025:8025 axllent/mailpit:v1.20.4`), set `SMTP_URL=smtp://localhost:1025`, read codes at http://localhost:8025 |
+| api | `SMTP_URL` (and optional `OTP_FROM_EMAIL`) | **required in production** unless `OTP_SHOW_ON_SCREEN=true` (demo only: codes appear on the login screen, so a password alone signs in; the API logs a warning at boot). Local: run Mailpit (`docker run -d -p 1025:1025 -p 8025:8025 axllent/mailpit:v1.20.4`), set `SMTP_URL=smtp://localhost:1025`, read codes at http://localhost:8025 |
 | settlement | `DATABASE_URL` | `environment:` |
 | reporting | `DATABASE_URL` | `environment:`; runs `worker` by default |
 
