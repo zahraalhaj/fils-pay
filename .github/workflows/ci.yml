@@ -89,6 +89,8 @@ jobs:
             -v "$PWD/ops/nginx/filspay.conf:/etc/nginx/conf.d/default.conf:ro" \
             -v "$PWD/ops/nginx/snippets:/etc/nginx/snippets:ro" \
             nginx:1.27-alpine nginx -t
+      - name: CSP allows every inline script by hash
+        run: python3 scripts/check-csp-hashes.py
       - name: production compose resolves, and refuses to start without secrets
         run: |
           sed -e 's/^POSTGRES_PASSWORD=$/POSTGRES_PASSWORD=x/' \
