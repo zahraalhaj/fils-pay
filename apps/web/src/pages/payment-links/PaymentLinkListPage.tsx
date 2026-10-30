@@ -78,12 +78,11 @@ export function PaymentLinkListPage() {
     <section>
       <PageHeader
         title="Payment links"
-        description="Links you send to customers so they can pay by card. Open a link to copy it, check its status or cancel it."
         actions={createAction}
       />
 
       <fieldset className="dash-filters">
-        <legend>Filter by status</legend>
+        <legend className="dash-sr-only">Filter by status</legend>
         <div className="dash-chips">
           {STATUSES.map((status) => (
             <label key={status} className="dash-chip">
@@ -93,8 +92,8 @@ export function PaymentLinkListPage() {
           ))}
         </div>
         {filtered ? (
-          <button type="button" className="dash-button" onClick={() => setStatuses([])}>
-            Clear filters
+          <button type="button" className="dash-button dash-button-quiet" onClick={() => setStatuses([])}>
+            Clear
           </button>
         ) : null}
       </fieldset>
@@ -108,15 +107,8 @@ export function PaymentLinkListPage() {
         </ErrorNotice>
       ) : null}
 
-      <div className="dash-toolbar">
-        <span aria-live="polite">
-          {loadedOnce ? `Showing ${links.length} link${links.length === 1 ? "" : "s"}${nextCursor ? " (more available)" : ""}` : ""}
-        </span>
-        <span>Times in {BUSINESS_TIME_ZONE_LABEL}</span>
-      </div>
-
       <div className="dash-table-wrap" role="region" aria-label="Payment links" tabIndex={0}>
-        <table className="dash-table">
+        <table className="dash-table dash-rows">
           <thead>
             <tr>
               <th scope="col">Reference</th>
@@ -130,20 +122,26 @@ export function PaymentLinkListPage() {
           <tbody>
             {links.map((link) => (
               <tr key={link.id}>
-                <td>
+                <td data-row="title">
                   <Link className="dash-row-link" to={`/dashboard/payment-links/${link.id}`}>
                     {link.reference ?? "No reference"}
                   </Link>
                 </td>
-                <td>{dash(link.description)}</td>
-                <td className="dash-num">
+                <td data-row="note" className="dash-cell-muted">
+                  {dash(link.description)}
+                </td>
+                <td className="dash-num" data-row="amount">
                   <Money fils={link.amountFils} />
                 </td>
-                <td>
+                <td data-row="status">
                   <StatusBadge kind="link" status={link.status} />
                 </td>
-                <td className="dash-nowrap">{bahrainDateTime(link.expiresAt)}</td>
-                <td className="dash-nowrap">{bahrainDateTime(link.createdAt)}</td>
+                <td className="dash-nowrap" data-row="meta" data-label="Expires">
+                  {bahrainDateTime(link.expiresAt)}
+                </td>
+                <td className="dash-nowrap dash-cell-muted" data-row="hide">
+                  {bahrainDateTime(link.createdAt)}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -160,12 +158,19 @@ export function PaymentLinkListPage() {
             </EmptyState>
           ) : (
             <EmptyState title="No payment links yet">
-              <p>Create a link, send it to a customer, and their payment will appear here and under Transactions.</p>
+              <p>Create one, share it, get paid by card.</p>
               <p>{createAction}</p>
             </EmptyState>
           )
         ) : null}
       </div>
+
+      {loadedOnce && links.length > 0 ? (
+        <div className="dash-toolbar dash-footnote">
+          <span aria-live="polite">{nextCursor ? `${links.length} shown` : ""}</span>
+          <span>Times in {BUSINESS_TIME_ZONE_LABEL}</span>
+        </div>
+      ) : null}
 
       <Pagination nextCursor={nextCursor} loading={loading} onLoadMore={() => void load(nextCursor)} />
     </section>

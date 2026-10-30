@@ -183,7 +183,7 @@ export function LoginPage() {
             />
           </label>
           <button type="submit" className="dash-button dash-button-primary" disabled={submitting}>
-            {submitting ? "Checking…" : "Continue"}
+            {submitting ? "Sending code…" : "Get sign-in code"}
           </button>
         </form>
       ) : (

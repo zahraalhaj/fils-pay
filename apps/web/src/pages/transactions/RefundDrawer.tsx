@@ -212,6 +212,8 @@ export function RefundDrawer({ txn, onRefunded }: RefundDrawerProps) {
               Refund <Money fils={step.amountFils} /> to the customer?
             </h3>
             <dl className="dash-dl">
+              <dt>Transaction</dt>
+              <dd>{txn.reference ?? <code>{txn.id}</code>}</dd>
               <dt>Captured</dt>
               <dd>
                 <Money fils={txn.capturedFils} />
@@ -241,7 +243,7 @@ export function RefundDrawer({ txn, onRefunded }: RefundDrawerProps) {
                 disabled={submitting}
                 onClick={() => void submit()}
               >
-                {submitting ? "Refunding…" : "Confirm refund"}
+                {submitting ? "Refunding…" : <>Refund <Money fils={step.amountFils} /></>}
               </button>
               <button
                 type="button"

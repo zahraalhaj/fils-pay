@@ -453,3 +453,62 @@ button:disabled {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ---------- Quiet layout ---------- */
+.admin-main {
+  max-width: 66rem;
+  padding-top: var(--fp-space-6);
+}
+
+h1 {
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+h2 {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: var(--fp-space-7);
+  font-size: 1.0625rem;
+  font-weight: 500;
+}
+
+.admin-nav a {
+  font-weight: 400;
+  color: #c9d6dc;
+}
+
+.admin-nav a.active {
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.admin-table {
+  border: 0;
+  border-top: 1px solid var(--fp-border);
+  border-radius: 0;
+  background: none;
+}
+
+.admin-table thead th {
+  background: none;
+  font-size: var(--fp-text-xs);
+  font-weight: 500;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: var(--fp-space-3);
+}
+
+.admin-filters {
+  border: 0;
+  padding: 0;
+  background: none;
+}
+
+/* Money-moving reviews keep their full frame: merchant, amount, scope. */
+.admin-error,
+.admin-notice {
+  border-width: 0 0 0 3px;
+}

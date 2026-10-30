@@ -265,11 +265,20 @@ export function CheckoutPage() {
           <h1 tabIndex={-1} ref={headingRef}>
             Payment successful
           </h1>
-          <p>
-            You paid <Money fils={payState.result.amountFils} /> to {link.merchantDisplayName}. This was a test payment
-            — no real money moved.
-          </p>
+          <p className="checkout-muted">Test payment — no real money moved.</p>
           <dl className="checkout-receipt">
+            <dt>Paid to</dt>
+            <dd>{link.merchantDisplayName}</dd>
+            <dt>Amount</dt>
+            <dd>
+              <Money fils={payState.result.amountFils} />
+            </dd>
+            {link.description ? (
+              <>
+                <dt>For</dt>
+                <dd>{link.description}</dd>
+              </>
+            ) : null}
             {link.reference ? (
               <>
                 <dt>Reference</dt>
@@ -285,7 +294,9 @@ export function CheckoutPage() {
               <code>{payState.result.transactionId}</code>
             </dd>
           </dl>
-          <p className="checkout-muted">Keep the transaction ID if you need to contact the merchant. You can close this page.</p>
+          <button type="button" className="checkout-link-button checkout-no-print" onClick={() => window.print()}>
+            Save receipt
+          </button>
         </div>
       </Shell>
     );
@@ -318,12 +329,12 @@ export function CheckoutPage() {
           </h1>
           <p>
             {noAnswer
-              ? "The payment provider didn't give us a final answer, so we can't tell yet whether your card was charged."
-              : "A payment for this link has started and its result isn't confirmed yet."}
+              ? "The provider didn't give a final answer, so we can't tell yet whether your card was charged."
+              : "A payment for this link has started and isn't confirmed yet."}
           </p>
           <p>
-            <strong>Please don&apos;t pay again.</strong> Check the status in a moment — the merchant can also see this
-            attempt{link.reference ? ` under reference ${link.reference}` : ""}.
+            <strong>Please don&apos;t pay again.</strong> Check the status in a moment
+            {link.reference ? ` — the merchant can see it under ${link.reference}` : ""}.
           </p>
           <button type="button" className="checkout-button" disabled={checking} onClick={() => void checkStatus()}>
             {checking ? "Checking…" : "Check payment status"}
@@ -403,6 +414,9 @@ export function CheckoutPage() {
                   value={card.pan}
                   aria-invalid={cardErrors.pan ? true : undefined}
                   aria-describedby={cardErrors.pan ? "co-pan-error" : undefined}
+                  onBlur={() => {
+                    if (card.pan.trim() !== "") setCardErrors((c) => ({ ...c, pan: validateCard(card).pan }));
+                  }}
                   onChange={(e) => {
                     const pan = e.target.value;
                     setCard({ ...card, pan });
@@ -473,6 +487,9 @@ export function CheckoutPage() {
                   value={card.cvv}
                   aria-invalid={cardErrors.cvv ? true : undefined}
                   aria-describedby={cardErrors.cvv ? "co-cvv-error" : undefined}
+                  onBlur={() => {
+                    if (card.cvv.trim() !== "") setCardErrors((c) => ({ ...c, cvv: validateCard(card).cvv }));
+                  }}
                   onChange={(e) => {
                     setCard({ ...card, cvv: e.target.value });
                     if (cardErrors.cvv) setCardErrors((c) => ({ ...c, cvv: undefined }));
@@ -505,7 +522,7 @@ export function CheckoutPage() {
 
         <details className="checkout-help">
           <summary>Test card numbers</summary>
-          <p>Use any expiry date and any 3-digit security code. The card number&apos;s last four digits decide the result:</p>
+          <p>Any expiry and security code. The last four digits decide the result:</p>
           <ul>
             <li>
               Ending <code>0002</code> — declined (do not honor)

@@ -62,13 +62,34 @@ export async function requestNoContent(path: string, init?: RequestInit): Promis
 /** Human-readable text for anything thrown by `request` — used by every
  *  dashboard page's error banner so a failure (including a server-side
  *  `403` from a role gate) is always shown, never silently swallowed. */
+/** Short wording for codes the API sends without a `message`. Login stays
+ *  deliberately generic — the API never says which credential was wrong,
+ *  and neither does this. */
+const KNOWN_ERRORS: Record<string, string> = {
+  invalid_credentials: "Those details didn't match. Check them and try again.",
+  invalid_code: "Code didn't match. Try again.",
+  otp_expired: "Code expired. Request a new one.",
+  no_pending_session: "Sign-in timed out. Start again.",
+  too_many_attempts: "Too many tries. Start sign-in again.",
+  resend_too_soon: "A code was just sent. Wait a moment before asking again.",
+  unauthenticated: "Session ended. Sign in again.",
+};
+
 export function describeError(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.statusCode === 403) {
-      return `Not permitted (${err.code}) — ask an owner or finance user on your account.`;
+      return `Needs an owner or finance user. (${err.code})`;
     }
-    return err.body.message ?? err.code;
+    if (err.body.message) return err.body.message;
+    const known = KNOWN_ERRORS[err.code];
+    if (known) return known;
+    if (err.statusCode >= 500) return `Couldn't complete that. Try again. (${err.code})`;
+    // No message: readable form of the code, kept verbatim in brackets for support.
+    const readable = err.code.replace(/_/g, " ");
+    return `${readable.charAt(0).toUpperCase()}${readable.slice(1)}. (${err.code})`;
   }
+  // fetch() rejects with a TypeError when no response arrives at all.
+  if (err instanceof TypeError) return "Couldn't reach FilsPay. Check your connection and try again.";
   if (err instanceof Error) return err.message;
-  return "Something went wrong.";
+  return "Something went wrong. Try again.";
 }

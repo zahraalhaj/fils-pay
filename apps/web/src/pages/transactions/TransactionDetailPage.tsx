@@ -267,7 +267,7 @@ export function TransactionDetailPage() {
               </dd>
               <dt>Currency</dt>
               <dd>{txn.currency}</dd>
-              <dt>Acquirer reference</dt>
+              <dt>Bank reference</dt>
               <dd>
                 <code>{txn.acquirerReference}</code>
               </dd>
@@ -364,7 +364,7 @@ export function TransactionDetailPage() {
                       if (e.key === "Escape" && !submitting) setPanel("none");
                     }}
                   >
-                    <h3 id="void-title">Void this authorization?</h3>
+                    <h3 id="void-title">Void {txn.reference ? `authorization ${txn.reference}` : "this authorization"}?</h3>
                     <p>
                       The held <Money fils={txn.amountFils} /> is released to the customer and can&apos;t be captured
                       afterwards.

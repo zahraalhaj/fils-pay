@@ -160,7 +160,7 @@ export function PaymentLinkDetailPage() {
           <>
             <StatusBadge kind="link" status={link.status} />{" "}
             {expired ? <span className="dash-status dash-tone-neutral">Expired</span> : null}{" "}
-            <span>{expired ? "The expiry time has passed, so customers can no longer pay this link." : statusHelp("link", link.status)}</span>
+            <span>{expired ? "Customers can no longer pay it." : statusHelp("link", link.status)}</span>
           </>
         }
         actions={
@@ -173,15 +173,14 @@ export function PaymentLinkDetailPage() {
       />
 
       {justCreated && link.status === "active" ? (
-        <SuccessNotice title="Payment link created">Copy the link below and send it to your customer.</SuccessNotice>
+        <SuccessNotice title="Link created. Copy it and send it to your customer." />
       ) : null}
       {canceledNotice && link.status === "canceled" ? (
-        <SuccessNotice title="Payment link canceled">Customers who open it will see that it is no longer available.</SuccessNotice>
+        <SuccessNotice title="Link canceled. It can no longer be paid." />
       ) : null}
       {link.status === "reserved" ? (
         <InfoNotice title="A payment attempt is still being confirmed">
-          Don&apos;t ask the customer to pay again yet. Check back shortly — once the attempt is resolved the link
-          will show as paid or open again.
+          Don&apos;t ask the customer to pay again yet — this page will show paid or open once it resolves.
         </InfoNotice>
       ) : null}
       {actionError ? <ErrorNotice title="The link was not canceled">{actionError}</ErrorNotice> : null}
@@ -204,8 +203,7 @@ export function PaymentLinkDetailPage() {
         <div>
           {link.status === "active" && !expired ? (
             <div className="dash-panel">
-              <h2>Share with your customer</h2>
-              <p className="dash-muted">Anyone with this link can pay it until it expires or is canceled.</p>
+              <h2>Share</h2>
               <div className="dash-copy">
                 <label htmlFor="pl-url" className="dash-sr-only">
                   Checkout link
@@ -220,8 +218,8 @@ export function PaymentLinkDetailPage() {
                 </a>
               </div>
               <p className="dash-field-hint" role="status" aria-live="polite">
-                {copy === "copied" ? "Link copied to your clipboard." : null}
-                {copy === "failed" ? "Copying isn't available in this browser — the link is selected, so press Ctrl+C or ⌘C." : null}
+                {copy === "copied" ? "Copied." : null}
+                {copy === "failed" ? "Couldn't copy automatically — the link is selected, press Ctrl+C or ⌘C." : null}
               </p>
             </div>
           ) : null}
@@ -256,7 +254,7 @@ export function PaymentLinkDetailPage() {
                 <code>{link.id}</code>
               </dd>
             </dl>
-            <p className="dash-field-hint">Times are shown in {BUSINESS_TIME_ZONE_LABEL}.</p>
+            <p className="dash-field-hint">Times in {BUSINESS_TIME_ZONE_LABEL}.</p>
           </div>
         </div>
 
@@ -273,7 +271,7 @@ export function PaymentLinkDetailPage() {
                     if (e.key === "Escape" && !submitting) closeConfirm();
                   }}
                 >
-                  <h3 id="pl-cancel-title">Cancel this payment link?</h3>
+                  <h3 id="pl-cancel-title">Cancel {link.reference ? `link ${link.reference}` : "this payment link"}?</h3>
                   <p>
                     Customers who open it will no longer be able to pay <Money fils={link.amountFils} />. This can&apos;t be
                     undone — you would need to create a new link.
@@ -294,7 +292,6 @@ export function PaymentLinkDetailPage() {
                 </div>
               ) : (
                 <>
-                  <p className="dash-muted">Stop this link from being paid, for example if the order changed.</p>
                   <button
                     type="button"
                     ref={cancelTriggerRef}

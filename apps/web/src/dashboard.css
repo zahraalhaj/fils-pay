@@ -1227,3 +1227,414 @@
     padding-top: var(--fp-space-3);
   }
 }
+
+/* =====================================================================
+   Quiet layout (the "nonchalant" pass). Gulf Night colours and the pearl
+   accent are unchanged; this layer removes containers and noise, adds air,
+   and keeps interaction feedback to hover and focus. Selection and focus
+   stay unmistakable: selected filters get the teal outline and a tick, and
+   every focusable element keeps the 3px focus ring.
+   ===================================================================== */
+
+/* Shell */
+.dash-sidebar {
+  gap: var(--fp-space-6);
+  padding: var(--fp-space-6) var(--fp-space-4);
+}
+
+.dash-merchant {
+  padding: 0 var(--fp-space-3);
+  background: none;
+}
+
+.dash-merchant .dash-muted {
+  display: none;
+}
+
+.dash-merchant-name {
+  font-weight: 500;
+  color: var(--fp-ink-muted);
+}
+
+.dash-nav {
+  gap: var(--fp-space-5);
+}
+
+.dash-nav-heading {
+  font-weight: 500;
+}
+
+.dash-nav a {
+  font-weight: 400;
+  color: var(--fp-ink-muted);
+}
+
+.dash-nav a:hover {
+  color: var(--fp-ink);
+}
+
+.dash-nav a.active {
+  color: var(--fp-ink);
+  font-weight: 500;
+  background: var(--fp-surface-sunken);
+  box-shadow: inset 2px 0 0 var(--fp-primary);
+}
+
+.dash-account {
+  border-top: 0;
+  gap: var(--fp-space-1);
+}
+
+.dash-account .dash-button {
+  justify-content: flex-start;
+  padding: 0 var(--fp-space-3);
+  border-color: transparent;
+  background: none;
+  color: var(--fp-ink-muted);
+  font-weight: 400;
+}
+
+.dash-account .dash-button:hover {
+  color: var(--fp-ink);
+  background: var(--fp-surface-sunken);
+}
+
+.dash-account-email {
+  padding: 0 var(--fp-space-3);
+  color: var(--fp-ink-muted);
+}
+
+.dash-account .dash-account-role {
+  padding: 0 var(--fp-space-3);
+  font-size: var(--fp-text-xs);
+  color: var(--fp-ink-muted);
+}
+
+.dash-main {
+  max-width: 66rem;
+  padding-top: var(--fp-space-7);
+}
+
+/* Headings and page header */
+.dash-shell h1 {
+  font-size: 1.75rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.dash-shell h2 {
+  font-size: 1.0625rem;
+  font-weight: 500;
+}
+
+.dash-page-header {
+  align-items: center;
+  margin-bottom: var(--fp-space-6);
+}
+
+/* Panels: lighter — no shadow, hairline only. */
+.dash-panel {
+  box-shadow: none;
+  padding: var(--fp-space-5) var(--fp-space-5);
+}
+
+.dash-figure {
+  border-color: var(--fp-border);
+}
+
+/* Filters: no panel; quiet chips with an obvious selected state. */
+.dash-filters {
+  padding: 0;
+  border: 0;
+  background: none;
+  margin-bottom: var(--fp-space-5);
+}
+
+.dash-filters .dash-chip {
+  padding: 0 var(--fp-space-4);
+  border-color: transparent;
+  background: none;
+  color: var(--fp-ink-muted);
+  font-weight: 400;
+}
+
+.dash-filters .dash-chip:hover {
+  color: var(--fp-ink);
+  background: var(--fp-surface-sunken);
+}
+
+.dash-filters .dash-chip:has(input:checked) {
+  background: var(--fp-primary-soft);
+  border-color: var(--fp-primary);
+  color: var(--fp-primary);
+  font-weight: 500;
+}
+
+.dash-filters input[type="date"],
+.dash-filters input[type="search"] {
+  background: var(--fp-surface);
+}
+
+.dash-button-quiet {
+  border-color: transparent;
+  background: none;
+  color: var(--fp-ink-muted);
+  font-weight: 400;
+}
+
+.dash-button-quiet:hover {
+  color: var(--fp-ink);
+  background: var(--fp-surface-sunken);
+}
+
+/* Tables: hairlines, no header fill, generous rows. */
+.dash-table-wrap {
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--fp-border);
+  border-radius: 0;
+}
+
+.dash-table,
+.dash-table-wrap .dash-table {
+  background: none;
+  font-size: 0.9375rem;
+}
+
+.dash-table thead th {
+  background: none;
+  font-size: var(--fp-text-xs);
+  font-weight: 500;
+}
+
+.dash-table th,
+.dash-table td {
+  padding: var(--fp-space-4) var(--fp-space-3);
+}
+
+.dash-table-wrap .dash-table tbody tr:last-child td {
+  border-bottom: 1px solid var(--fp-border);
+}
+
+.dash-table tbody td {
+  transition: background-color 120ms ease-out;
+}
+
+.dash-row-link {
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.dash-row-link:hover {
+  text-decoration: underline;
+}
+
+.dash-cell-muted {
+  color: var(--fp-ink-muted);
+}
+
+.dash-footnote {
+  margin-top: var(--fp-space-3);
+  font-size: var(--fp-text-xs);
+}
+
+/* Status: dot + word. The word carries the meaning; the dot carries tone. */
+.dash-status {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-size: var(--fp-text-sm);
+  font-weight: 400;
+  color: var(--fp-ink);
+}
+
+.dash-status::before {
+  width: 0.5rem;
+  height: 0.5rem;
+  background: var(--fp-neutral);
+}
+
+.dash-status.dash-tone-success,
+.dash-status.dash-tone-warning,
+.dash-status.dash-tone-pending,
+.dash-status.dash-tone-danger,
+.dash-status.dash-tone-neutral,
+.dash-status[class*="dash-status-"] {
+  color: var(--fp-ink);
+  background: none;
+  border: 0;
+}
+
+.dash-status.dash-tone-success::before,
+.dash-status-captured::before,
+.dash-status-paid::before,
+.dash-status-succeeded::before,
+.dash-status-active::before { background: var(--fp-success); }
+.dash-status.dash-tone-warning::before,
+.dash-status-authorized::before,
+.dash-status-partially_captured::before,
+.dash-status-partially_refunded::before,
+.dash-status-pending::before,
+.dash-status-open::before { background: var(--fp-warning); }
+.dash-status.dash-tone-pending::before,
+.dash-status-reserved::before { background: var(--fp-pending); }
+.dash-status.dash-tone-danger::before,
+.dash-status-failed::before,
+.dash-status-exhausted::before,
+.dash-status-chargeback::before { background: var(--fp-danger); }
+.dash-status.dash-tone-neutral::before { background: var(--fp-neutral); opacity: 0.7; }
+
+/* Notices: quieter frame, same tones, still announced. */
+.dash-error,
+.dash-notice,
+.dash-info,
+.dash-confirm {
+  border-width: 0 0 0 3px;
+}
+
+/* Timeline: thinner rule and dots. */
+.dash-timeline li {
+  border-left-width: 1px;
+}
+
+.dash-timeline li::before {
+  left: -0.35rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-width: 1.5px;
+}
+
+/* Loaders wait ~150ms so fast responses never flash a spinner. */
+.dash-loading {
+  animation: dash-appear 160ms ease-out 150ms both;
+}
+
+@keyframes dash-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-table tbody td {
+    transition: none;
+  }
+}
+
+/* ---------- Phones: tables become two-line list rows ---------- */
+@media (max-width: 600px) {
+  .dash-main {
+    padding-top: var(--fp-space-5);
+  }
+
+  .dash-page-header {
+    margin-bottom: var(--fp-space-4);
+  }
+
+  .dash-shell h1 {
+    font-size: 1.5rem;
+  }
+
+  /* Chips: one scrollable row instead of wrapping. */
+  .dash-chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-inline: calc(var(--fp-space-4) * -1);
+    padding: 4px var(--fp-space-4);
+  }
+
+  .dash-filters .dash-chip {
+    white-space: nowrap;
+    flex: none;
+  }
+
+  .dash-rows thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .dash-rows,
+  .dash-rows tbody {
+    display: block;
+  }
+
+  .dash-rows tbody tr {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: var(--fp-space-1) var(--fp-space-3);
+    padding: var(--fp-space-4) 0;
+    border-bottom: 1px solid var(--fp-border);
+  }
+
+  .dash-table.dash-rows tbody td {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+
+  .dash-rows td[data-row="hide"] {
+    display: none !important;
+  }
+
+  .dash-rows td[data-row="title"] { grid-column: 1; grid-row: 1; }
+  .dash-rows td[data-row="amount"] { grid-column: 2; grid-row: 1; text-align: right; }
+  .dash-rows td[data-row="note"] {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    font-size: var(--fp-text-sm);
+    color: var(--fp-ink-muted);
+  }
+  .dash-rows td[data-row="status"] { grid-column: 1; grid-row: 3; }
+  .dash-rows td[data-row="meta"] {
+    grid-column: 2;
+    grid-row: 3;
+    text-align: right;
+    font-size: var(--fp-text-sm);
+    color: var(--fp-ink-muted);
+  }
+  .dash-rows td[data-row="meta"][data-label]::before {
+    content: attr(data-label) " ";
+  }
+  /* Extra amount line (e.g. refunded) only when there is one. */
+  .dash-rows td[data-row="extra"] {
+    grid-column: 1 / -1;
+    grid-row: 4;
+    font-size: var(--fp-text-sm);
+    color: var(--fp-ink-muted);
+  }
+  .dash-rows td[data-row="extra"]:not(:has(.ui-money)) {
+    display: none;
+  }
+  .dash-rows td[data-row="extra"][data-label]::before {
+    content: attr(data-label) " ";
+  }
+}
+
+/* Amounts inside solid buttons keep the button's own text colour. */
+.dash-button .ui-money-fils,
+.dash-button .ui-money-unit,
+.dash-button-link .ui-money-fils,
+.dash-button-link .ui-money-unit {
+  color: inherit;
+  opacity: 0.85;
+}
+
+@media (max-width: 600px) {
+  .dash-table-wrap .dash-table.dash-rows tbody td,
+  .dash-table-wrap .dash-table.dash-rows tbody tr:last-child td {
+    border: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .dash-confirm .dash-dl dt:last-of-type {
+    border-bottom: 0;
+  }
+}
+
+.dash-account > span:has(.dash-status) {
+  padding: 0 var(--fp-space-3);
+}

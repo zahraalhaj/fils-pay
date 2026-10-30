@@ -277,7 +277,13 @@
   background: var(--fp-danger-bg);
 }
 
+/* Focus is moved here after a decline so it is announced; the ring only
+   shows for keyboard users. */
 .checkout-alert:focus {
+  outline: none;
+}
+
+.checkout-alert:focus-visible {
   outline: 3px solid var(--fp-focus);
   outline-offset: 2px;
 }
@@ -416,5 +422,71 @@
     animation: none;
     border-right-color: currentColor;
     opacity: 0.6;
+  }
+}
+
+/* ---------- Quiet layout ---------- */
+.checkout-card {
+  box-shadow: none;
+  padding: var(--fp-space-6) var(--fp-space-5);
+}
+
+.checkout-shell h1 {
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.checkout-form-title {
+  font-size: var(--fp-text-md) !important;
+  color: var(--fp-ink-muted);
+  font-weight: 500 !important;
+}
+
+.checkout-help {
+  border-top: 0;
+}
+
+/* Outcomes stay distinct: success = green tick + green rule, uncertain =
+   indigo "…" + indigo rule, decline = red alert inside the still-usable form. */
+.checkout-outcome-success,
+.checkout-outcome-pending {
+  border-top-width: 3px;
+}
+
+.checkout-link-button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding: 0;
+  font: inherit;
+  font-weight: 500;
+  color: var(--fp-primary);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Saved / printed receipt: plain and light. The test-mode banner stays. */
+@media print {
+  .checkout-shell {
+    background: #fff !important;
+    padding: 0;
+  }
+
+  .checkout-shell * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .checkout-no-print,
+  .checkout-footer {
+    display: none !important;
+  }
+
+  .checkout-card {
+    border: 1px solid #999;
   }
 }

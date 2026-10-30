@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { listTransactions } from "../../api/transactions.js";
 import { describeError } from "../../api/client.js";
 import { Pagination } from "../../components/Pagination.js";
+import { RequireRole } from "../../auth/RequireRole.js";
 import { BUSINESS_TIME_ZONE_LABEL, bahrainDateTime, dayStartIso } from "../../format.js";
 import { truncateMiddle } from "../../utils/helpers.js";
 import { EmptyState, ErrorNotice, Loading } from "../../ui/Feedback.js";
@@ -101,10 +102,7 @@ export function TransactionListPage() {
 
   return (
     <section>
-      <PageHeader
-        title="Transactions"
-        description="Card payments taken through your payment links and API. Open a transaction to see its full history or issue a refund."
-      />
+      <PageHeader title="Transactions" />
 
       <div className="dash-filters" role="search" aria-label="Filter transactions">
         <label className="dash-filter-field dash-filter-search" htmlFor="tx-search">
@@ -112,21 +110,21 @@ export function TransactionListPage() {
           <input
             id="tx-search"
             type="search"
-            placeholder="Reference, acquirer reference or transaction ID"
+            placeholder="Reference or transaction ID"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
           />
         </label>
         <label className="dash-filter-field" htmlFor="tx-from">
-          From (Bahrain date)
+          From
           <input id="tx-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         </label>
         <label className="dash-filter-field" htmlFor="tx-to">
-          Before (not including)
+          Before
           <input id="tx-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </label>
         <fieldset className="dash-filter-group dash-chips-fieldset">
-          <legend className="dash-filter-group-label">Status</legend>
+          <legend className="dash-sr-only">Status</legend>
           <div className="dash-chips">
             {STATUSES.map((status) => (
               <label key={status} className="dash-chip">
@@ -137,8 +135,8 @@ export function TransactionListPage() {
           </div>
         </fieldset>
         {filtered ? (
-          <button type="button" className="dash-button" onClick={clearFilters}>
-            Clear filters
+          <button type="button" className="dash-button dash-button-quiet" onClick={clearFilters}>
+            Clear
           </button>
         ) : null}
       </div>
@@ -152,17 +150,8 @@ export function TransactionListPage() {
         </ErrorNotice>
       ) : null}
 
-      <div className="dash-toolbar">
-        <span aria-live="polite">
-          {loadedOnce
-            ? `Showing ${transactions.length} transaction${transactions.length === 1 ? "" : "s"}${nextCursor ? " (more available)" : ""}`
-            : ""}
-        </span>
-        <span>Times in {BUSINESS_TIME_ZONE_LABEL}</span>
-      </div>
-
       <div className="dash-table-wrap" role="region" aria-label="Transactions" tabIndex={0}>
-        <table className="dash-table">
+        <table className="dash-table dash-rows">
           <thead>
             <tr>
               <th scope="col">Reference</th>
@@ -171,29 +160,33 @@ export function TransactionListPage() {
               <th scope="col" className="dash-num">Authorized</th>
               <th scope="col" className="dash-num">Captured</th>
               <th scope="col" className="dash-num">Refunded</th>
-              <th scope="col">Acquirer reference</th>
+              <th scope="col">Bank reference</th>
             </tr>
           </thead>
           <tbody>
             {transactions.map((txn) => (
               <tr key={txn.id}>
-                <td>
+                <td data-row="title">
                   <Link className="dash-row-link" to={`/dashboard/transactions/${txn.id}`}>
                     {txn.reference ?? "No reference"}
                   </Link>
                 </td>
-                <td className="dash-nowrap">{bahrainDateTime(txn.occurredAt)}</td>
-                <td>
+                <td className="dash-nowrap dash-cell-muted" data-row="meta">
+                  {bahrainDateTime(txn.occurredAt)}
+                </td>
+                <td data-row="status">
                   <StatusBadge kind="transaction" status={txn.status} />
                 </td>
-                <td className="dash-num">
+                <td className="dash-num" data-row="amount">
                   <Money fils={txn.amountFils} />
                 </td>
-                <td className="dash-num">
+                <td className="dash-num" data-row="hide">
                   <Money fils={txn.capturedFils} />
                 </td>
-                <td className="dash-num">{txn.refundedFils > 0 ? <Money fils={txn.refundedFils} /> : <span className="dash-muted">—</span>}</td>
-                <td>
+                <td className="dash-num" data-row="extra" data-label="Refunded">
+                  {txn.refundedFils > 0 ? <Money fils={txn.refundedFils} /> : <span className="dash-muted">—</span>}
+                </td>
+                <td className="dash-cell-muted" data-row="hide">
                   <code title={txn.acquirerReference}>{truncateMiddle(txn.acquirerReference, 20)}</code>
                 </td>
               </tr>
@@ -212,14 +205,25 @@ export function TransactionListPage() {
             </EmptyState>
           ) : (
             <EmptyState title="No transactions yet">
-              <p>
-                When a customer pays one of your <Link to="/dashboard/payment-links">payment links</Link>, the payment
-                appears here.
-              </p>
+              <p>Payments from your links appear here.</p>
+              <RequireRole allow={["owner", "finance"]}>
+                <p>
+                  <Link className="dash-button-link dash-button-primary" to="/dashboard/payment-links/new">
+                    Create a payment link
+                  </Link>
+                </p>
+              </RequireRole>
             </EmptyState>
           )
         ) : null}
       </div>
+
+      {loadedOnce && transactions.length > 0 ? (
+        <div className="dash-toolbar dash-footnote">
+          <span aria-live="polite">{nextCursor ? `${transactions.length} shown` : ""}</span>
+          <span>Dates and times in {BUSINESS_TIME_ZONE_LABEL}</span>
+        </div>
+      ) : null}
 
       <Pagination nextCursor={nextCursor} loading={loading} onLoadMore={() => void load(nextCursor)} />
     </section>

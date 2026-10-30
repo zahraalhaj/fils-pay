@@ -63,6 +63,8 @@ export function PaymentLinkCreatePage() {
   const [preset, setPreset] = useState<ExpiryPreset>("7");
   const [customExpiry, setCustomExpiry] = useState("");
   const [touched, setTouched] = useState<Partial<Record<Field, boolean>>>({});
+  /** A field being edited never shows its error; it reappears on blur. */
+  const [editing, setEditing] = useState<Partial<Record<Field, boolean>>>({});
   const [serverFieldErrors, setServerFieldErrors] = useState<FieldErrors>({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -83,7 +85,8 @@ export function PaymentLinkCreatePage() {
   // Errors appear once a field has been left (or on submit) and clear as soon
   // as the value is fixed.
   const visibleError = (field: Field): string | undefined =>
-    serverFieldErrors[field] ?? (touched[field] || submitAttempted ? clientErrors[field] : undefined);
+    serverFieldErrors[field] ??
+    ((touched[field] || submitAttempted) && !editing[field] ? clientErrors[field] : undefined);
   const fieldInputId: Record<Field, string> = {
     amount: "pl-amount",
     expiry: preset === "custom" ? "pl-expiry-custom" : "pl-expiry",
@@ -98,6 +101,7 @@ export function PaymentLinkCreatePage() {
     setError(null);
     setServerFieldErrors({});
     setSubmitAttempted(true);
+    setEditing({});
 
     if (!amount.ok || !expiryIso || Object.keys(clientErrors).length > 0) {
       // Move focus to the summary so keyboard and screen-reader users land on it.
@@ -138,7 +142,7 @@ export function PaymentLinkCreatePage() {
       <PageHeader
         back={{ to: "/dashboard/payment-links", label: "Payment links" }}
         title="New payment link"
-        description="Create a link your customer opens to pay by card. Payments here use the simulated test acquirer — no real card is charged."
+        description="Test mode — payments use a simulated acquirer and no real card is charged."
       />
 
       <div className="dash-split">
@@ -170,7 +174,7 @@ export function PaymentLinkCreatePage() {
             <div className="dash-field">
               <label htmlFor="pl-amount">Amount (BHD)</label>
               <span className="dash-field-hint" id="pl-amount-hint">
-                Up to 3 decimal places, for example 18.500. 1 BHD = 1,000 fils.
+                Up to 3 decimal places.
               </span>
               <div className="dash-input-affix">
                 <input
@@ -184,9 +188,13 @@ export function PaymentLinkCreatePage() {
                   aria-describedby={`pl-amount-hint pl-amount-preview${amountError ? " pl-amount-error" : ""}`}
                   onChange={(e) => {
                     setAmountText(e.target.value);
+                    setEditing((f) => ({ ...f, amount: true }));
                     setServerFieldErrors((prev) => ({ ...prev, amount: undefined }));
                   }}
-                  onBlur={() => setTouched((t) => ({ ...t, amount: true }))}
+                  onBlur={() => {
+                    setTouched((t) => ({ ...t, amount: true }));
+                    setEditing((f) => ({ ...f, amount: false }));
+                  }}
                 />
                 <span aria-hidden="true">BHD</span>
               </div>
@@ -207,7 +215,7 @@ export function PaymentLinkCreatePage() {
             <div className="dash-field">
               <label htmlFor="pl-reference">Reference (optional)</label>
               <span className="dash-field-hint" id="pl-reference-hint">
-                Your invoice or order number. Shown to the customer and on the transaction.
+                Shown to the customer and on the transaction.
               </span>
               <input
                 id="pl-reference"
@@ -222,7 +230,7 @@ export function PaymentLinkCreatePage() {
             <div className="dash-field">
               <label htmlFor="pl-description">Description (optional)</label>
               <span className="dash-field-hint" id="pl-description-hint">
-                What the customer is paying for. Shown on the checkout page.
+                Shown on the checkout page.
               </span>
               <input
                 id="pl-description"
@@ -268,9 +276,13 @@ export function PaymentLinkCreatePage() {
                   aria-describedby="pl-expiry-custom-hint pl-expiry-summary"
                   onChange={(e) => {
                     setCustomExpiry(e.target.value);
+                    setEditing((f) => ({ ...f, expiry: true }));
                     setServerFieldErrors((prev) => ({ ...prev, expiry: undefined }));
                   }}
-                  onBlur={() => setTouched((t) => ({ ...t, expiry: true }))}
+                  onBlur={() => {
+                    setTouched((t) => ({ ...t, expiry: true }));
+                    setEditing((f) => ({ ...f, expiry: false }));
+                  }}
                 />
               </div>
             ) : null}
@@ -309,7 +321,6 @@ export function PaymentLinkCreatePage() {
           )}
           {description.trim() ? <p>{description.trim()}</p> : null}
           {reference.trim() ? <p className="dash-muted">Reference {reference.trim()}</p> : null}
-          <p className="dash-muted">Once the link is created you can copy it and send it to your customer.</p>
         </aside>
       </div>
     </section>
