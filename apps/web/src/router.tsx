@@ -21,6 +21,7 @@ import { OverviewPage } from "./pages/overview/OverviewPage.js";
 // MK: /refunds route removed until FP-212
 export const router = createBrowserRouter([
   { path: "/pay/:token", element: <CheckoutPage /> },
+  { path: "/", element: <Navigate to="/dashboard" replace /> },
 
   {
     // The session provider wraps the dashboard subtree only — never
