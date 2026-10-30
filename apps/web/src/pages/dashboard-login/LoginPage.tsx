@@ -121,11 +121,28 @@ export function LoginPage() {
 
   return (
     <main className="dash-centered">
-      <h1>FilsPay dashboard</h1>
-      <p className="dash-muted">Merchant sign-in.</p>
+      <div className="dash-auth-card">
+      <div className="dash-auth-brand">
+        <span className="dash-brand-mark" aria-hidden="true">F</span>
+        FilsPay
+      </div>
+      <h1>{step.kind === "credentials" ? "Sign in to your dashboard" : "Enter your sign-in code"}</h1>
+      <p className="dash-muted">
+        {step.kind === "credentials"
+          ? "For merchants accepting payments with FilsPay."
+          : "We use a one-time code to confirm it's you."}
+      </p>
 
-      {error ? <p className="dash-error">{error}</p> : null}
-      {notice ? <p className="dash-notice">{notice}</p> : null}
+      {error ? (
+        <p className="dash-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {notice ? (
+        <p className="dash-notice" role="status">
+          {notice}
+        </p>
+      ) : null}
 
       {step.kind === "credentials" ? (
         <form onSubmit={(e) => void handleCredentials(e)} className="dash-form">
@@ -165,15 +182,15 @@ export function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </label>
-          <button type="submit" className="dash-button" disabled={submitting}>
-            {submitting ? "Signing in..." : "Continue"}
+          <button type="submit" className="dash-button dash-button-primary" disabled={submitting}>
+            {submitting ? "Checking…" : "Continue"}
           </button>
         </form>
       ) : (
         <form onSubmit={(e) => void handleOtp(e)} className="dash-form">
           <p>
             A one-time code was issued for <strong>{email}</strong>. It expires at{" "}
-            {new Date(step.challenge.otpExpiresAt).toLocaleTimeString()}.
+            {new Date(step.challenge.otpExpiresAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.
           </p>
           {step.challenge.devOtpCode ? (
             <p className="dash-muted">
@@ -191,8 +208,8 @@ export function LoginPage() {
               onChange={(e) => setCode(e.target.value)}
             />
           </label>
-          <button type="submit" className="dash-button" disabled={submitting}>
-            {submitting ? "Verifying..." : "Verify"}
+          <button type="submit" className="dash-button dash-button-primary" disabled={submitting}>
+            {submitting ? "Verifying…" : "Verify and sign in"}
           </button>
           <button
             type="button"
@@ -207,6 +224,7 @@ export function LoginPage() {
           </button>
         </form>
       )}
+      </div>
     </main>
   );
 }

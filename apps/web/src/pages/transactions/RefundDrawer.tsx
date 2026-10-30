@@ -1,15 +1,24 @@
 /**
  * Refund control on the transaction detail page (FP-212). Posts to
- * `POST /v1/merchants/:merchantId/refunds`; leaving the amount blank refunds
- * everything still refundable (captured minus already refunded).
+ * `POST /v1/merchants/:merchantId/refunds`; leaving the amount blank omits
+ * `amountFils` and the API refunds everything still refundable (captured
+ * minus already refunded) — its own documented default.
+ *
+ * Two steps: enter an amount (in BHD, converted to integer fils by the shared
+ * parser), then review exactly what will happen before anything is sent.
+ * The confirmation shown afterwards is built from the server's response, not
+ * from what was typed.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { request } from "../../api/client.js";
 import { describeError } from "../../api/client.js";
 import { useDashboardAuth } from "../../auth/DashboardAuthContext.js";
 import { RequireRole } from "../../auth/RequireRole.js";
-import { bhd } from "../../format.js";
-import type { TransactionDto } from "../../types.js";
+import { parseBhdInput } from "../../format.js";
+import { ErrorNotice, SuccessNotice } from "../../ui/Feedback.js";
+import { Money } from "../../ui/Money.js";
+import { TRANSACTION_STATUS } from "../../ui/StatusBadge.js";
+import type { TransactionDto, TransactionStatus } from "../../types.js";
 
 interface RefundResponse {
   id: string;
@@ -27,12 +36,19 @@ interface RefundDrawerProps {
   onRefunded: () => Promise<void>;
 }
 
+type Step = { kind: "closed" } | { kind: "entering" } | { kind: "reviewing"; amountFils: number; full: boolean };
+
 export function RefundDrawer({ txn, onRefunded }: RefundDrawerProps) {
   const { me } = useDashboardAuth();
-  const [open, setOpen] = useState(false);
-  const [amount, setAmount] = useState("");
+  const [step, setStep] = useState<Step>({ kind: "closed" });
+  const [amountText, setAmountText] = useState("");
+  const [amountError, setAmountError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [done, setDone] = useState<RefundResponse | null>(null);
+  const openButtonRef = useRef<HTMLButtonElement>(null);
+  const amountRef = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
 
   const merchantId = me?.merchant.id;
   const refundableFils = txn.capturedFils - txn.refundedFils;
@@ -40,32 +56,61 @@ export function RefundDrawer({ txn, onRefunded }: RefundDrawerProps) {
     (txn.status === "captured" || txn.status === "partially_captured" || txn.status === "partially_refunded") &&
     refundableFils > 0;
 
-  async function handleRefund(event: React.FormEvent): Promise<void> {
+  useEffect(() => {
+    if (step.kind === "entering") amountRef.current?.focus();
+    if (step.kind === "reviewing") confirmRef.current?.focus();
+  }, [step.kind]);
+
+  function close(): void {
+    setStep({ kind: "closed" });
+    setAmountText("");
+    setAmountError(null);
+    requestAnimationFrame(() => openButtonRef.current?.focus());
+  }
+
+  function review(event: React.FormEvent): void {
     event.preventDefault();
-    if (!merchantId) return;
-    if (!window.confirm("Refund this transaction? The money goes back to the cardholder and cannot be recalled.")) {
+    setError(null);
+    if (amountText.trim() === "") {
+      setStep({ kind: "reviewing", amountFils: refundableFils, full: true });
       return;
     }
+    const parsed = parseBhdInput(amountText);
+    if (!parsed.ok) {
+      setAmountError(
+        parsed.reason === "not_positive"
+          ? "The refund must be more than 0.000 BHD."
+          : "Enter the amount in BHD with up to 3 decimal places, for example 2.500.",
+      );
+      amountRef.current?.focus();
+      return;
+    }
+    if (parsed.fils > refundableFils) {
+      setAmountError("That is more than is left to refund. Enter a smaller amount or leave it blank to refund the rest.");
+      amountRef.current?.focus();
+      return;
+    }
+    setStep({ kind: "reviewing", amountFils: parsed.fils, full: parsed.fils === refundableFils });
+  }
 
+  async function submit(): Promise<void> {
+    if (!merchantId || step.kind !== "reviewing" || submitting) return;
     setSubmitting(true);
     setError(null);
     try {
-      const trimmed = amount.trim();
-      // Left blank, amountFils is omitted entirely and the API refunds
-      // everything still refundable — its own documented default, same
-      // affordance the capture form has.
-      const body = trimmed === "" ? { transactionId: txn.id } : { transactionId: txn.id, amountFils: Number(trimmed) };
-
-      await request<RefundResponse>(`/v1/merchants/${encodeURIComponent(merchantId)}/refunds`, {
+      // A blank amount is still sent as "no amountFils" so the server applies
+      // its own full-refund default rather than a value computed here.
+      const typed = amountText.trim();
+      const body = typed === "" ? { transactionId: txn.id } : { transactionId: txn.id, amountFils: step.amountFils };
+      const result = await request<RefundResponse>(`/v1/merchants/${encodeURIComponent(merchantId)}/refunds`, {
         method: "POST",
-        // A fresh key per click, including a retry after a decline — same
-        // discipline as capture and the checkout page's submit handler.
+        // A fresh key per confirmed attempt, including a retry after a failure.
         headers: { "Idempotency-Key": crypto.randomUUID() },
         body: JSON.stringify(body),
       });
-
-      setOpen(false);
-      setAmount("");
+      setDone(result);
+      setStep({ kind: "closed" });
+      setAmountText("");
       // Refetch rather than patch: the refund wrote a new transaction_events
       // row server-side, so the timeline is stale, not merely shorter.
       await onRefunded();
@@ -76,41 +121,139 @@ export function RefundDrawer({ txn, onRefunded }: RefundDrawerProps) {
     }
   }
 
-  if (!refundable) return null;
+  const successNotice = done ? (
+    <SuccessNotice title="Refund recorded">
+      <Money fils={done.amountFils} /> is being returned to the customer&apos;s card. Total refunded on this
+      transaction: <Money fils={done.refundedTotalFils} />. Status is now{" "}
+      {TRANSACTION_STATUS[done.transactionStatus as TransactionStatus]?.label ?? done.transactionStatus}.
+    </SuccessNotice>
+  ) : null;
+
+  if (!refundable) return successNotice;
 
   return (
     <RequireRole allow={["owner", "finance"]}>
-      <div className="dash-actions">
-        {error ? <p className="dash-error">{error}</p> : null}
-        {open ? (
-          <form className="dash-form dash-form-inline" onSubmit={(e) => void handleRefund(e)}>
-            <label>
-              Amount in fils (blank refunds everything still refundable)
-              <input
-                type="number"
-                min={1}
-                step={1}
-                max={refundableFils}
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-              />
-            </label>
+      {successNotice}
+      <div className="dash-panel">
+        <h2>Refund</h2>
+        {error ? <ErrorNotice title="The refund was not made">{error}</ErrorNotice> : null}
+
+        {step.kind === "closed" ? (
+          <>
             <p className="dash-muted">
-              Captured {bhd(txn.capturedFils)}, already refunded {bhd(txn.refundedFils)}, refundable{" "}
-              {bhd(refundableFils)}
+              Up to <Money fils={refundableFils} /> can still be returned to the customer&apos;s card.
             </p>
-            <button type="submit" className="dash-button" disabled={submitting}>
-              {submitting ? "Refunding..." : "Refund"}
+            <button
+              type="button"
+              ref={openButtonRef}
+              className="dash-button"
+              onClick={() => {
+                setDone(null);
+                setStep({ kind: "entering" });
+              }}
+            >
+              Refund…
             </button>
-            <button type="button" className="dash-button" disabled={submitting} onClick={() => setOpen(false)}>
-              Cancel
-            </button>
+          </>
+        ) : null}
+
+        {step.kind === "entering" ? (
+          <form className="dash-form" noValidate onSubmit={review}>
+            <div className="dash-field">
+              <label htmlFor="refund-amount">Refund amount (BHD)</label>
+              <span className="dash-field-hint" id="refund-amount-hint">
+                Leave blank to refund the full remaining <Money fils={refundableFils} />.
+              </span>
+              <div className="dash-input-affix">
+                <input
+                  id="refund-amount"
+                  ref={amountRef}
+                  type="text"
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="0.000"
+                  value={amountText}
+                  aria-invalid={amountError ? true : undefined}
+                  aria-describedby={`refund-amount-hint${amountError ? " refund-amount-error" : ""}`}
+                  onChange={(e) => {
+                    setAmountText(e.target.value);
+                    setAmountError(null);
+                  }}
+                />
+                <span aria-hidden="true">BHD</span>
+              </div>
+              {amountError ? (
+                <span className="dash-field-error" id="refund-amount-error" role="alert">
+                  {amountError}
+                </span>
+              ) : null}
+            </div>
+            <div className="dash-form-actions">
+              <button type="submit" className="dash-button dash-button-primary">
+                Review refund
+              </button>
+              <button type="button" className="dash-button" onClick={close}>
+                Cancel
+              </button>
+            </div>
           </form>
-        ) : (
-          <button type="button" className="dash-button" onClick={() => setOpen(true)}>
-            Refund
-          </button>
-        )}
+        ) : null}
+
+        {step.kind === "reviewing" ? (
+          <div
+            className="dash-confirm"
+            role="group"
+            aria-labelledby="refund-review-title"
+            onKeyDown={(e) => {
+              if (e.key === "Escape" && !submitting) close();
+            }}
+          >
+            <h3 id="refund-review-title">
+              Refund <Money fils={step.amountFils} /> to the customer?
+            </h3>
+            <dl className="dash-dl">
+              <dt>Captured</dt>
+              <dd>
+                <Money fils={txn.capturedFils} />
+              </dd>
+              <dt>Already refunded</dt>
+              <dd>
+                <Money fils={txn.refundedFils} />
+              </dd>
+              <dt>This refund</dt>
+              <dd>
+                <strong>
+                  <Money fils={step.amountFils} />
+                </strong>
+                {step.full ? " (everything remaining)" : null}
+              </dd>
+              <dt>Left to refund after</dt>
+              <dd>
+                <Money fils={refundableFils - step.amountFils} />
+              </dd>
+            </dl>
+            <p>The money goes back to the cardholder and can&apos;t be recalled.</p>
+            <div className="dash-form-actions">
+              <button
+                type="button"
+                ref={confirmRef}
+                className="dash-button dash-button-danger-solid"
+                disabled={submitting}
+                onClick={() => void submit()}
+              >
+                {submitting ? "Refunding…" : "Confirm refund"}
+              </button>
+              <button
+                type="button"
+                className="dash-button"
+                disabled={submitting}
+                onClick={() => setStep({ kind: "entering" })}
+              >
+                Change amount
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </RequireRole>
   );

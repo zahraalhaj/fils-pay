@@ -1,0 +1,74 @@
+/* FilsPay design tokens — shared by the merchant dashboard and the public
+   checkout. Custom properties only: nothing here styles an element, so
+   importing it from either half of the app cannot leak layout into the other.
+
+   Palette is a proposal for the hackathon build, not an established brand:
+   cool "pearl" surfaces, slate ink, and one deep Gulf teal reserved for
+   primary actions. Status tones always ship with a text label — colour is
+   never the only signal. */
+:root {
+  /* Surfaces */
+  --fp-bg: #f5f6f4;
+  --fp-surface: #ffffff;
+  --fp-surface-sunken: #eef0ed;
+  --fp-border: #d9ddd8;
+  --fp-border-strong: #b7bdb6;
+
+  /* Text — all ≥ 4.5:1 on --fp-surface and --fp-bg */
+  --fp-ink: #1c2a33;
+  --fp-ink-muted: #56636b;
+  --fp-ink-inverse: #ffffff;
+
+  /* Primary (Gulf teal) */
+  --fp-primary: #0d5c6b;
+  --fp-primary-hover: #0a4a57;
+  --fp-primary-soft: #e3f0f1;
+  --fp-focus: #1f7f93;
+
+  /* Status tones: text / background / border */
+  --fp-success: #1e6b3a;
+  --fp-success-bg: #e7f3eb;
+  --fp-success-border: #a9d3b6;
+  --fp-warning: #7a4f00;
+  --fp-warning-bg: #fdf3df;
+  --fp-warning-border: #e8c987;
+  --fp-danger: #a3192e;
+  --fp-danger-bg: #fbe9ec;
+  --fp-danger-border: #eab0ba;
+  /* "Processing / not confirmed" — deliberately not a danger tone, so an
+     uncertain payment can never be mistaken for a failed one. */
+  --fp-pending: #3a4a9e;
+  --fp-pending-bg: #eceefa;
+  --fp-pending-border: #b9c0e8;
+  --fp-neutral: #4a5560;
+  --fp-neutral-bg: #eef0f1;
+  --fp-neutral-border: #c9cfd3;
+
+  /* Type */
+  --fp-font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --fp-font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --fp-text-xs: 0.75rem;
+  --fp-text-sm: 0.875rem;
+  --fp-text-md: 1rem;
+  --fp-text-lg: 1.25rem;
+  --fp-text-xl: 1.625rem;
+  --fp-text-2xl: 2.25rem;
+
+  /* Space (4pt rhythm) */
+  --fp-space-1: 0.25rem;
+  --fp-space-2: 0.5rem;
+  --fp-space-3: 0.75rem;
+  --fp-space-4: 1rem;
+  --fp-space-5: 1.5rem;
+  --fp-space-6: 2rem;
+  --fp-space-7: 3rem;
+
+  /* Shape */
+  --fp-radius-sm: 4px;
+  --fp-radius-md: 8px;
+  --fp-radius-lg: 12px;
+  --fp-shadow: 0 1px 2px rgba(28, 42, 51, 0.06), 0 1px 1px rgba(28, 42, 51, 0.04);
+
+  /* Hit targets */
+  --fp-control-height: 2.75rem; /* 44px */
+}

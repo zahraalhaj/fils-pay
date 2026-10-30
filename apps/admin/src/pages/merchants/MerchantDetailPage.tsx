@@ -49,8 +49,14 @@ export function MerchantDetailPage() {
   const [creditReverseFee, setCreditReverseFee] = useState(false);
   const [creditEffectiveDate, setCreditEffectiveDate] = useState(todayIso());
 
-  const [adjustDeltaFils, setAdjustDeltaFils] = useState("");
+  const [adjustDeltaBhd, setAdjustDeltaBhd] = useState("");
   const [adjustReason, setAdjustReason] = useState("");
+  /** Which money-moving form is on its review step (nothing is sent before it). */
+  const [reviewing, setReviewing] = useState<
+    | null
+    | { kind: "adjust"; deltaFils: number }
+    | { kind: "credit"; baseAmountFils: number }
+  >(null);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -113,13 +119,27 @@ export function MerchantDetailPage() {
 
   // FH: this ends up in adjustMerchantBalanceCache (cache only)
   // MK: it's the journaled one since Sep
-  async function handleAdjustBalance(): Promise<void> {
-    if (!id) return;
-    const deltaFils = Number(adjustDeltaFils.trim());
-    if (!Number.isInteger(deltaFils) || deltaFils === 0) {
-      setActionError("Enter a non-zero whole number of fils.");
+  /** Step 1: parse with the shared BHD parser and show the review panel. */
+  function reviewAdjustBalance(): void {
+    setActionError(null);
+    setNotice(null);
+    let deltaFils: number;
+    try {
+      deltaFils = parseBhdToFils(adjustDeltaBhd.trim());
+    } catch {
+      setActionError("Enter the adjustment in BHD with up to 3 decimal places, for example -12.500 or 50.000.");
       return;
     }
+    if (deltaFils === 0) {
+      setActionError("The adjustment can't be 0.000 BHD.");
+      return;
+    }
+    setReviewing({ kind: "adjust", deltaFils });
+  }
+
+  /** Step 2: confirmed by the operator — send it. */
+  async function handleAdjustBalance(deltaFils: number): Promise<void> {
+    if (!id || busy) return;
     setBusy(true);
     setActionError(null);
     setNotice(null);
@@ -130,8 +150,9 @@ export function MerchantDetailPage() {
           result.cachedPayableFilsBefore,
         )} → ${bhd(result.cachedPayableFilsAfter)}.`,
       );
-      setAdjustDeltaFils("");
+      setAdjustDeltaBhd("");
       setAdjustReason("");
+      setReviewing(null);
       await load();
     } catch (err) {
       setActionError(describeError(err));
@@ -140,16 +161,34 @@ export function MerchantDetailPage() {
     }
   }
 
-  async function handleIssueCredit(event: React.FormEvent): Promise<void> {
+  /** Step 1: validate and show the review panel. Nothing is sent yet. */
+  function reviewIssueCredit(event: React.FormEvent): void {
     event.preventDefault();
-    if (!id) return;
+    setActionError(null);
+    setNotice(null);
+    let baseAmountFils: number;
+    try {
+      // BD in, integer fils out, via the platform's own string-based parser —
+      // never parseFloat, which cannot represent the third decimal exactly.
+      baseAmountFils = parseBhdToFils(creditAmountBhd);
+    } catch {
+      setActionError("Enter the credit in BHD with up to 3 decimal places, for example 50.000.");
+      return;
+    }
+    if (baseAmountFils <= 0) {
+      setActionError("A credit must be more than 0.000 BHD.");
+      return;
+    }
+    setReviewing({ kind: "credit", baseAmountFils });
+  }
+
+  /** Step 2: confirmed by the operator — send it. */
+  async function handleIssueCredit(baseAmountFils: number): Promise<void> {
+    if (!id || busy) return;
     setBusy(true);
     setActionError(null);
     setNotice(null);
     try {
-      // BD in, integer fils out, via the platform's own string-based parser —
-      // never parseFloat, which cannot represent the third decimal exactly.
-      const baseAmountFils = parseBhdToFils(creditAmountBhd);
       const record = await issueCredit(id, {
         baseAmountFils,
         reasonCode: creditReason,
@@ -167,6 +206,7 @@ export function MerchantDetailPage() {
       setCreditAmountBhd("");
       setCreditMemo("");
       setCreditReverseFee(false);
+      setReviewing(null);
       await load();
     } catch (err) {
       setActionError(err instanceof RangeError ? err.message : describeError(err));
@@ -249,8 +289,16 @@ export function MerchantDetailPage() {
         <code>{merchant.id}</code>
       </p>
 
-      {actionError ? <p className="admin-error">{actionError}</p> : null}
-      {notice ? <p className="admin-notice">{notice}</p> : null}
+      {actionError ? (
+        <p className="admin-error" role="alert">
+          {actionError}
+        </p>
+      ) : null}
+      {notice ? (
+        <p className="admin-notice" role="status">
+          {notice}
+        </p>
+      ) : null}
 
       <h2>Profile</h2>
       <dl className="admin-dl">
@@ -322,34 +370,80 @@ export function MerchantDetailPage() {
           </p>
         }
       >
-        <div className="admin-form">
-          <label>
-            Delta (fils, may be negative)
-            <input
-              value={adjustDeltaFils}
-              onChange={(e) => setAdjustDeltaFils(e.target.value)}
-              inputMode="numeric"
-              placeholder="50000"
-            />
-          </label>
-          <label>
-            Reason
-            <input
-              value={adjustReason}
-              onChange={(e) => setAdjustReason(e.target.value)}
-              placeholder="phone confirmation with merchant"
-            />
-          </label>
-          <div>
-            <button
-              type="button"
-              disabled={busy || !adjustDeltaFils.trim() || !adjustReason.trim()}
-              onClick={() => void handleAdjustBalance()}
-            >
-              Adjust balance
-            </button>
+        {reviewing?.kind === "adjust" ? (
+          <div className="admin-confirm" role="group" aria-labelledby="adjust-review-title">
+            <h3 id="adjust-review-title">Review balance adjustment</h3>
+            <dl className="admin-dl admin-dl-compact">
+              <dt>Merchant</dt>
+              <dd>
+                {merchant.displayName} <code>{merchant.id}</code>
+              </dd>
+              <dt>Cached payable now</dt>
+              <dd className="admin-num">{detail.balance ? bhd(detail.balance.cachedPayableFils) : "no cached balance"}</dd>
+              <dt>Adjustment</dt>
+              <dd className="admin-num">
+                <strong>
+                  {reviewing.deltaFils > 0 ? "+" : ""}
+                  {bhd(reviewing.deltaFils)}
+                </strong>
+              </dd>
+              {detail.balance ? (
+                <>
+                  <dt>Expected after</dt>
+                  <dd className="admin-num">{bhd(detail.balance.cachedPayableFils + reviewing.deltaFils)}</dd>
+                </>
+              ) : null}
+              <dt>Reason</dt>
+              <dd>{adjustReason.trim()}</dd>
+              <dt>Scope</dt>
+              <dd>This merchant&apos;s cached payable balance only. The ledger is not changed.</dd>
+            </dl>
+            <div className="admin-actions">
+              <button
+                type="button"
+                className="admin-button-danger"
+                disabled={busy}
+                onClick={() => void handleAdjustBalance(reviewing.deltaFils)}
+              >
+                {busy ? "Applying…" : "Apply adjustment"}
+              </button>
+              <button type="button" disabled={busy} onClick={() => setReviewing(null)}>
+                Go back
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="admin-form">
+            <label>
+              Adjustment (BHD, use a minus sign to reduce)
+              <input
+                value={adjustDeltaBhd}
+                onChange={(e) => setAdjustDeltaBhd(e.target.value)}
+                inputMode="decimal"
+                autoComplete="off"
+                placeholder="-12.500"
+              />
+            </label>
+            <label>
+              Reason
+              <input
+                value={adjustReason}
+                onChange={(e) => setAdjustReason(e.target.value)}
+                placeholder="Phone confirmation with merchant, ticket #"
+              />
+            </label>
+            <div>
+              <button
+                type="button"
+                className="admin-button-primary"
+                disabled={busy || reviewing !== null || !adjustDeltaBhd.trim() || !adjustReason.trim()}
+                onClick={reviewAdjustBalance}
+              >
+                Review adjustment
+              </button>
+            </div>
+          </div>
+        )}
       </RequireRole>
 
       <h2>Issue credit</h2>
@@ -367,7 +461,55 @@ export function MerchantDetailPage() {
           </p>
         }
       >
-        <form className="admin-form" onSubmit={(e) => void handleIssueCredit(e)}>
+        {reviewing?.kind === "credit" ? (
+          <div className="admin-confirm" role="group" aria-labelledby="credit-review-title">
+            <h3 id="credit-review-title">Review credit</h3>
+            <dl className="admin-dl admin-dl-compact">
+              <dt>Merchant</dt>
+              <dd>
+                {merchant.displayName} <code>{merchant.id}</code>
+              </dd>
+              <dt>Amount</dt>
+              <dd className="admin-num">
+                <strong>{bhd(reviewing.baseAmountFils)}</strong>
+              </dd>
+              <dt>Reason</dt>
+              <dd>{creditReason.replace(/_/g, " ")}</dd>
+              <dt>Effective date</dt>
+              <dd>{creditEffectiveDate}</dd>
+              <dt>Reverse MDR</dt>
+              <dd>{creditReverseFee ? `Yes, at ${(merchant.mdrBps / 100).toFixed(2)}%` : "No"}</dd>
+              {creditMemo.trim() ? (
+                <>
+                  <dt>Memo</dt>
+                  <dd>{creditMemo.trim()}</dd>
+                </>
+              ) : null}
+            </dl>
+            <p>
+              Above the approval limit this waits in Credits for a second finance operator; otherwise it posts to
+              the ledger immediately.
+            </p>
+            <div className="admin-actions">
+              <button
+                type="button"
+                className="admin-button-danger"
+                disabled={busy}
+                onClick={() => void handleIssueCredit(reviewing.baseAmountFils)}
+              >
+                {busy ? "Submitting…" : "Issue credit"}
+              </button>
+              <button type="button" disabled={busy} onClick={() => setReviewing(null)}>
+                Go back
+              </button>
+            </div>
+          </div>
+        ) : null}
+        <form
+          className="admin-form"
+          hidden={reviewing?.kind === "credit"}
+          onSubmit={reviewIssueCredit}
+        >
           <label>
             Amount (BD, up to 3 decimals)
             <input
@@ -410,8 +552,8 @@ export function MerchantDetailPage() {
             Memo (optional)
             <textarea value={creditMemo} onChange={(e) => setCreditMemo(e.target.value)} rows={2} />
           </label>
-          <button type="submit" disabled={busy}>
-            {busy ? "Submitting..." : "Issue credit"}
+          <button type="submit" className="admin-button-primary" disabled={busy || reviewing !== null}>
+            Review credit
           </button>
         </form>
       </RequireRole>

@@ -1,4 +1,4 @@
-import { formatBhd, toFils } from "@filspay/money";
+import { formatBhd, parseBhdToFils, toFils } from "@filspay/money";
 
 /**
  * The dashboard's display helpers. Deliberately thin: `bhd` delegates to
@@ -21,6 +21,54 @@ export function dash(value: string | number | null | undefined): string {
 /** Browser-local rendering, not Asia/Bahrain. */
 export function dateTime(iso: string | null | undefined): string {
   return iso ? new Date(iso).toLocaleString() : "—";
+}
+
+/** The merchant's business timezone — the same zone `dayStartIso` and
+ *  settlement use. Display-only here; it never changes a filter value. */
+export const BUSINESS_TIME_ZONE = "Asia/Bahrain";
+export const BUSINESS_TIME_ZONE_LABEL = "Bahrain time";
+
+const BAHRAIN_DATE_TIME = new Intl.DateTimeFormat("en-GB", {
+  timeZone: BUSINESS_TIME_ZONE,
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/**
+ * An instant rendered in Asia/Bahrain wall time, e.g. `30 Oct 2026, 19:52`.
+ * Callers label the zone once (a column header or a "Bahrain time" suffix)
+ * so the reader knows which clock this is, whatever their browser's zone.
+ */
+export function bahrainDateTime(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime()) ? "—" : BAHRAIN_DATE_TIME.format(date);
+}
+
+/**
+ * Parses what a person typed into a BHD amount field ("18.5", "18.500",
+ * "0.250") into integer fils via the shared `parseBhdToFils` — the one
+ * validated string-to-fils parser — and never via `parseFloat`.
+ */
+export type BhdInputResult =
+  | { ok: true; fils: number }
+  | { ok: false; reason: "empty" | "format" | "not_positive" };
+
+export function parseBhdInput(text: string): BhdInputResult {
+  const trimmed = text.trim().replace(/,/g, "");
+  if (trimmed === "") return { ok: false, reason: "empty" };
+  let fils: number;
+  try {
+    fils = parseBhdToFils(trimmed);
+  } catch {
+    return { ok: false, reason: "format" };
+  }
+  if (fils <= 0) return { ok: false, reason: "not_positive" };
+  return { ok: true, fils };
 }
 
 /**

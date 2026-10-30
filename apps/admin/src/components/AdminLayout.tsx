@@ -28,13 +28,25 @@ export function AdminLayout() {
       <ImpersonationBanner />
 
       <header className="admin-header">
-        <div className="admin-brand">FilsPay Admin</div>
-        <nav className="admin-nav">
-          <NavLink to="/merchants">Merchants</NavLink>
-          <NavLink to="/credits">Credits</NavLink>
-          <NavLink to="/settlement">Settlement ops</NavLink>
-          <NavLink to="/adjustment-imports">Import adjustments</NavLink>
-          <NavLink to="/webhooks">Webhook replay</NavLink>
+        <div className="admin-brand">
+          FilsPay <span className="admin-brand-tag">Staff console</span>
+        </div>
+        {/* Routine lookup is kept apart from the screens that move money. */}
+        <nav className="admin-nav" aria-label="Admin">
+          <div className="admin-nav-group">
+            <span className="admin-nav-label">Look up</span>
+            <NavLink to="/merchants">Merchants</NavLink>
+          </div>
+          <div className="admin-nav-group">
+            <span className="admin-nav-label">Financial operations</span>
+            <NavLink to="/credits">Credits</NavLink>
+            <NavLink to="/settlement">Settlement ops</NavLink>
+            <NavLink to="/adjustment-imports">Import adjustments</NavLink>
+          </div>
+          <div className="admin-nav-group">
+            <span className="admin-nav-label">Developers</span>
+            <NavLink to="/webhooks">Webhook replay</NavLink>
+          </div>
         </nav>
         <div className="admin-identity">
           {admin ? (
