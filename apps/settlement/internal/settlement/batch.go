@@ -22,6 +22,14 @@ import (
 // (RunDailyBatch) already filters merchants before ever calling it.
 var ErrMerchantNotEligible = errors.New("settlement: merchant not found or not eligible for settlement")
 
+// ErrRunInProgress is returned by RunDailyBatch when another run (daemon,
+// CLI or the admin re-run endpoint, in any process) holds the run lock.
+var ErrRunInProgress = errors.New("settlement: another settlement run is in progress")
+
+// runLockKey is the Postgres advisory lock key that makes RunDailyBatch a
+// cluster-wide singleton ("FILSSETL" as ASCII bytes).
+const runLockKey int64 = 0x46494c5353455454
+
 // BatchResult is CloseBatch's return value.
 type BatchResult struct {
 	BatchID       uuid.UUID
@@ -418,7 +426,38 @@ type MerchantBatchOutcome struct {
 // parallelize away, and this removes any question of lock-ordering
 // between concurrent goroutines each trying to FOR UPDATE a
 // settlement_batches row.
+//
+// Only one run executes at a time across every process: the run holds a
+// session advisory lock on a dedicated connection for its whole duration
+// and a concurrent caller gets ErrRunInProgress instead of overlapping
+// (postmortem 2026-05 action #7, which was marked done but never built).
+// The per-batch idempotency guards remain the second line of defence if
+// the lock connection drops mid-run.
+//
+// Cancelling ctx (SIGTERM on redeploy) never interrupts a merchant
+// mid-close: the merchant in progress finishes on a non-cancellable
+// context and the run stops before the next one, returning ctx.Err().
 func RunDailyBatch(ctx context.Context, db *pgxpool.Pool, businessDate time.Time, onlyMerchant *uuid.UUID) (DailyBatchReport, error) {
+	lockConn, err := db.Acquire(ctx)
+	if err != nil {
+		return DailyBatchReport{}, fmt.Errorf("settlement: RunDailyBatch: acquire lock connection: %w", err)
+	}
+	defer lockConn.Release()
+	var locked bool
+	if err := lockConn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, runLockKey).Scan(&locked); err != nil {
+		return DailyBatchReport{}, fmt.Errorf("settlement: RunDailyBatch: take run lock: %w", err)
+	}
+	if !locked {
+		return DailyBatchReport{}, ErrRunInProgress
+	}
+	defer func() {
+		// Unlock even after ctx is cancelled; a failure here drops the
+		// connection, which releases the session lock anyway.
+		if _, err := lockConn.Exec(context.Background(), `SELECT pg_advisory_unlock($1)`, runLockKey); err != nil {
+			lockConn.Conn().Close(context.Background())
+		}
+	}()
+
 	var merchantIDs []uuid.UUID
 	if onlyMerchant != nil {
 		merchantIDs = []uuid.UUID{*onlyMerchant}
@@ -446,7 +485,12 @@ func RunDailyBatch(ctx context.Context, db *pgxpool.Pool, businessDate time.Time
 	sort.Slice(merchantIDs, func(i, j int) bool { return merchantIDs[i].String() < merchantIDs[j].String() })
 
 	report := DailyBatchReport{BusinessDate: businessDate}
+	stopCtx := ctx
+	ctx = context.WithoutCancel(ctx)
 	for _, merchantID := range merchantIDs {
+		if err := stopCtx.Err(); err != nil {
+			return report, fmt.Errorf("settlement: RunDailyBatch: stopped before %s: %w", merchantID, err)
+		}
 		closeResult, err := CloseBatch(ctx, db, merchantID, businessDate)
 		if err != nil {
 			if errors.Is(err, ErrMerchantNotEligible) {

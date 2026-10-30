@@ -235,6 +235,10 @@ func handleRunBatch(pool *pgxpool.Pool) http.Handler {
 		}
 
 		report, err := settlement.RunDailyBatch(r.Context(), pool, businessDate, onlyMerchant)
+		if errors.Is(err, settlement.ErrRunInProgress) {
+			writeJSON(w, http.StatusConflict, errorResponse{Error: "settlement_run_in_progress"})
+			return
+		}
 		if err != nil {
 			log.Printf("settlement internal api: run-batch(%s) failed: %v", body.Date, err)
 			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "run_batch_failed"})

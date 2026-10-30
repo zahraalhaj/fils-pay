@@ -3,7 +3,7 @@
 This is the plain-language version of [BUGS.md](BUGS.md). Each bug keeps the
 same number in both files, so you can look up the technical details there.
 
-**Total: 80 items** · ✅ 67 fixed · 🔴 3 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 10 not a bug
+**Total: 81 items** · ✅ 68 fixed · 🔴 3 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 10 not a bug
 
 Each heading starts with a running count (1, 2, 3 …). The number in brackets at the end, like (#15), is the bug's ID in [BUGS.md](BUGS.md); IDs were given in the order bugs were found, so they aren't in sequence.
 
@@ -560,3 +560,14 @@ were set up with different versions of those two steps. So no new server could
 be set up, including the Dilmune hosting. Both steps now match what our working
 database actually has, and a completely empty database sets up from start to
 finish.
+
+### 76. ✅ Two payout runs could happen at the same time (#82)
+
+Payouts can be started three ways: automatically every night, by an engineer
+from the command line, or by staff pressing "re-run" in the admin console.
+Nothing stopped two of these running at once, so the system relied on later
+safety checks to avoid paying a shop twice. A past incident report said a lock
+had been added. It hadn't. Also, restarting the server during a payout run cut
+it off halfway through a shop. Now only one run can happen at a time (a second
+one is politely refused), and a restart lets the current shop finish before
+stopping.

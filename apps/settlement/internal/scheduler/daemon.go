@@ -11,6 +11,7 @@ package scheduler
 
 import (
 	"context"
+	"errors"
 	"log"
 	"time"
 
@@ -85,6 +86,10 @@ func runIfDue(ctx context.Context, db *pgxpool.Pool, runDelayMinutes int) {
 	}
 
 	report, err := settlement.RunDailyBatch(ctx, db, businessDate, nil)
+	if errors.Is(err, settlement.ErrRunInProgress) {
+		log.Printf("settlement daemon: RunDailyBatch(%s) skipped: another run holds the lock", businessDate.Format("2006-01-02"))
+		return
+	}
 	if err != nil {
 		log.Printf("settlement daemon: RunDailyBatch(%s) failed: %v", businessDate.Format("2006-01-02"), err)
 		return
