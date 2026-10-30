@@ -1,8 +1,8 @@
-import type { Pool } from "pg";
+import type { Pool, PoolClient } from "pg";
 import type { EventType } from "@filspay/events";
 import { withTransaction } from "../db/withTransaction.js";
 import type { ReportingConfig } from "../config.js";
-import { readCursor, advanceCursor } from "./cursor.js";
+import { readCursor, advanceCursor, type ConsumerCursor } from "./cursor.js";
 import { applyEvent, type OutboxEventRow } from "./applyEvent.js";
 
 // am: refund.succeeded not here yet. when refunds ship just add it to the list
@@ -46,31 +46,17 @@ export async function runConsumerPass(
   }
   return withTransaction(pool, async (client) => {
     const cursor = await readCursor(client, CONSUMER_NAME);
+    const rows = await selectDueEvents(client, cursor, config.consumerBatchLimit);
 
-    // MK 2026-06: ids come from a sequence, they're monotonic. fine for now.
-    const eventsResult = await client.query<OutboxEventRow>(
-      `SELECT id, event_type, aggregate_id, payload, created_at
-         FROM outbox_events
-        WHERE id > $1
-          AND event_type = ANY($2::text[])
-        ORDER BY id ASC
-        LIMIT $3`,
-      [cursor.lastProcessedId.toString(), REPORTING_EVENT_TYPES, config.consumerBatchLimit],
-    );
-
-    // FH: redundant with ORDER BY id ASC (last row is max). harmless
-    let maxId = cursor.lastProcessedId;
-    for (const row of eventsResult.rows) {
+    for (const row of rows) {
       await applyEvent(client, row);
-      const rowId = BigInt(row.id);
-      if (rowId > maxId) maxId = rowId;
     }
 
-    if (eventsResult.rows.length > 0) {
-      await advanceCursor(client, CONSUMER_NAME, maxId);
+    if (rows.length > 0) {
+      await advanceCursor(client, CONSUMER_NAME, positionOf(rows[rows.length - 1]!));
     }
 
-    return { processedCount: eventsResult.rows.length };
+    return { processedCount: rows.length };
   });
 }
 
@@ -87,19 +73,10 @@ async function runIsolatingPass(
 ): Promise<{ processedCount: number; deadLetteredCount: number }> {
   return withTransaction(pool, async (client) => {
     const cursor = await readCursor(client, CONSUMER_NAME);
-    const eventsResult = await client.query<OutboxEventRow>(
-      `SELECT id, event_type, aggregate_id, payload, created_at
-         FROM outbox_events
-        WHERE id > $1
-          AND event_type = ANY($2::text[])
-        ORDER BY id ASC
-        LIMIT $3`,
-      [cursor.lastProcessedId.toString(), REPORTING_EVENT_TYPES, config.consumerBatchLimit],
-    );
+    const rows = await selectDueEvents(client, cursor, config.consumerBatchLimit);
 
-    let maxId = cursor.lastProcessedId;
     let deadLetteredCount = 0;
-    for (const row of eventsResult.rows) {
+    for (const row of rows) {
       await client.query("SAVEPOINT reporting_event");
       try {
         await applyEvent(client, row);
@@ -114,13 +91,44 @@ async function runIsolatingPass(
         );
         deadLetteredCount++;
       }
-      const rowId = BigInt(row.id);
-      if (rowId > maxId) maxId = rowId;
     }
 
-    if (eventsResult.rows.length > 0) {
-      await advanceCursor(client, CONSUMER_NAME, maxId);
+    if (rows.length > 0) {
+      await advanceCursor(client, CONSUMER_NAME, positionOf(rows[rows.length - 1]!));
     }
-    return { processedCount: eventsResult.rows.length - deadLetteredCount, deadLetteredCount };
+    return { processedCount: rows.length - deadLetteredCount, deadLetteredCount };
   });
+}
+
+type DueEventRow = OutboxEventRow & { txid: string };
+
+/**
+ * Next events after `cursor`, in (txid, id) order. Ids are assigned at
+ * INSERT but visible only at COMMIT, so id order let the watermark pass an
+ * event whose transaction was still open, losing it for good (#74). Rows
+ * written by a transaction older than the snapshot's xmin are final: every
+ * such transaction has committed or aborted, and any later outbox write has
+ * a txid >= xmin, so it sorts after everything returned here. A long-open
+ * transaction anywhere in the database delays reporting until it ends.
+ */
+async function selectDueEvents(
+  client: PoolClient,
+  cursor: ConsumerCursor,
+  limit: number,
+): Promise<DueEventRow[]> {
+  const result = await client.query<DueEventRow>(
+    `SELECT id, txid::text AS txid, event_type, aggregate_id, payload, created_at
+       FROM outbox_events
+      WHERE (txid, id) > ($1::xid8, $2::bigint)
+        AND txid < pg_snapshot_xmin(pg_current_snapshot())
+        AND event_type = ANY($3::text[])
+      ORDER BY txid ASC, id ASC
+      LIMIT $4`,
+    [cursor.lastProcessedTxid.toString(), cursor.lastProcessedId.toString(), REPORTING_EVENT_TYPES, limit],
+  );
+  return result.rows;
+}
+
+function positionOf(row: DueEventRow): ConsumerCursor {
+  return { lastProcessedTxid: BigInt(row.txid), lastProcessedId: BigInt(row.id) };
 }

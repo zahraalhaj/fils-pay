@@ -3,7 +3,7 @@
 This is the plain-language version of [BUGS.md](BUGS.md). Each bug keeps the
 same number in both files, so you can look up the technical details there.
 
-**Total: 80 items** · ✅ 66 fixed · 🔴 4 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 10 not a bug
+**Total: 80 items** · ✅ 67 fixed · 🔴 3 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 10 not a bug
 
 Each heading starts with a running count (1, 2, 3 …). The number in brackets at the end, like (#15), is the bug's ID in [BUGS.md](BUGS.md); IDs were given in the order bugs were found, so they aren't in sequence.
 
@@ -449,12 +449,14 @@ crashes in the middle, that ID stays marked "in progress" and every retry is
 refused. A clean-up script that supposedly handles this doesn't exist.
 **Left open on purpose:** only refunds are affected (card payments clean up after themselves). An automatic clean-up could make a stuck refund go through twice, so this needs a way to ask the bank whether the refund really happened. That is a design decision, not a quick fix.
 
-### 67. 🔴 The reports can silently miss a payment (#74)
+### 67. ✅ The reports can silently miss a payment (#74)
 The reporting service keeps a bookmark: "I've handled everything up to record
 number N". But records can be saved slightly out of order, so a record with a
 lower number can appear after the bookmark has already moved past it, and
 then it is never counted. The previous developer listed this as unfinished.
-**Not fixed yet:** the proper fix changes how the bookmark works, which deserves its own careful review.
+**Fixed:** we reproduced it (two payments, only one reached the reports). The
+bookmark now only moves past records whose save has fully finished, so a
+slow save is picked up as soon as it completes instead of being skipped.
 
 ### 68. ✅ Unexpected fields in a profile update cause a server error (#59)
 Sending a field the profile doesn't have gives a server error instead of a
