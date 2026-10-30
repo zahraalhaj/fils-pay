@@ -1,27 +1,19 @@
-import type { FastifyInstance, FastifyRequest, preHandlerHookHandler } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { toFils } from "@filspay/money";
 import {
   requireMerchantAuth,
   requireMerchantRole,
   requireMerchantWriterActor,
 } from "../auth/requireMerchantAuth.js";
+import { BadRequestError } from "../lib/errors.js";
 import { assertRefundRequestScope, initiateMerchantRefund } from "../refunds/initiateMerchantRefund.js";
-import { BadRequestError, ForbiddenError } from "../lib/errors.js";
+import { getIdempotencyKey } from "./transactions.js";
 
-/**
- * `POST /v1/refunds` — full and partial refunds (FP-212).
- *
- * Body: `{ transactionId, amountFils?, reason? }`. Omitting `amountFils`
- * refunds everything still refundable. An `Idempotency-Key` header is
- * required and must be reused by the client when it retries the same refund.
- *
- * The merchant is always the authenticated one (session or API key). Any
- * merchant id in the body is ignored.
- *
- * Behind FEATURE_REFUNDS. While the flag is off the route keeps its old 501
- * answer. Settlement adjustment and the `refund.succeeded` webhook are not
- * part of this change.
- */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+interface MerchantIdParams {
+  merchantId: string;
+}
 
 interface RefundBody {
   transactionId?: unknown;
@@ -29,76 +21,53 @@ interface RefundBody {
   reason?: unknown;
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const MAX_REASON_LENGTH = 500;
-
-function getIdempotencyKey(request: FastifyRequest): string {
-  const header = request.headers["idempotency-key"];
-  const key = Array.isArray(header) ? header[0] : header;
-  if (!key) {
-    throw new BadRequestError("idempotency_key_required", "Idempotency-Key header is required");
-  }
-  return key;
+/**
+ * The old `/v1/refunds` prefix. Refunds live under the merchant
+ * (`merchantRefundRoutes`), which is what the dashboard's RefundDrawer and
+ * initiateMerchantRefund were built for; this stays a 501 so nothing
+ * integrates against an unscoped path.
+ */
+export async function refundRoutes(app: FastifyInstance): Promise<void> {
+  app.post("/", { preHandler: requireMerchantAuth }, async (_request, reply) => {
+    reply.code(501).send({ error: "not_implemented" });
+  });
 }
 
 /**
- * Refunds move money, and impersonation grants are view-only (ADMIN.md).
- * Refused explicitly rather than relying on how admin roles happen to map
- * onto merchant roles (impersonation.ts), so a future mapping change cannot
- * let an operator issue refunds as the merchant.
+ * Registered with prefix '/v1/merchants'. `POST /:merchantId/refunds`
+ * refunds a captured transaction of the authenticated merchant, in full
+ * (amountFils omitted) or in part. Requires an Idempotency-Key header.
  */
-const rejectImpersonation: preHandlerHookHandler = async (request) => {
-  if (request.merchantAuth?.actorType === "admin_impersonation") {
-    throw new ForbiddenError("impersonation_read_only");
-  }
-};
-
-function parseBody(body: RefundBody | undefined) {
-  const { transactionId, amountFils, reason } = body ?? {};
-
-  if (typeof transactionId !== "string" || !UUID_RE.test(transactionId)) {
-    throw new BadRequestError("invalid_request", "transactionId must be a transaction id");
-  }
-  if (amountFils !== undefined && (typeof amountFils !== "number" || !Number.isSafeInteger(amountFils) || amountFils <= 0)) {
-    throw new BadRequestError("refund_amount_invalid", "amountFils must be a positive whole number of fils");
-  }
-  if (reason !== undefined && (typeof reason !== "string" || reason.length > MAX_REASON_LENGTH)) {
-    throw new BadRequestError("invalid_request", `reason must be a string of at most ${MAX_REASON_LENGTH} characters`);
-  }
-
-  return {
-    transactionId,
-    amountFils: amountFils === undefined ? undefined : toFils(amountFils),
-    reason: reason as string | undefined,
-  };
-}
-
-export async function refundRoutes(app: FastifyInstance): Promise<void> { registerRefund(app, "/"); }
-export async function merchantRefundRoutes(app: FastifyInstance): Promise<void> { registerRefund(app, "/:merchantId/refunds"); }
-function registerRefund(app: FastifyInstance, path: string): void {
-  if (!app.config.featureRefunds) {
-    app.post(path, { preHandler: requireMerchantAuth }, async (_request, reply) => {
-      reply.code(501).send({ error: "not_implemented" });
-    });
-    return;
-  }
-
-  app.post<{ Body: RefundBody; Params: { merchantId?: string } }>(
-    path,
-    { preHandler: [requireMerchantAuth, rejectImpersonation, requireMerchantRole("owner", "finance")] },
+export async function merchantRefundRoutes(app: FastifyInstance): Promise<void> {
+  app.post<{ Params: MerchantIdParams; Body: RefundBody }>(
+    "/:merchantId/refunds",
+    { preHandler: [requireMerchantAuth, requireMerchantRole("owner", "finance")] },
     async (request, reply) => {
-      const idempotencyKey = getIdempotencyKey(request);
-      const { transactionId, amountFils, reason } = parseBody(request.body);
       const auth = request.merchantAuth!;
-      if (request.params.merchantId) assertRefundRequestScope(auth, request.params.merchantId);
+      assertRefundRequestScope(auth, request.params.merchantId);
+      const idempotencyKey = getIdempotencyKey(request);
+
+      const body = request.body ?? {};
+      if (typeof body.transactionId !== "string" || !UUID_RE.test(body.transactionId)) {
+        throw new BadRequestError("invalid_request", "transactionId must be a transaction id");
+      }
+      if (
+        body.amountFils !== undefined &&
+        (typeof body.amountFils !== "number" || !Number.isSafeInteger(body.amountFils) || body.amountFils <= 0)
+      ) {
+        throw new BadRequestError("invalid_request", "amountFils must be a positive whole number of fils");
+      }
+      if (body.reason !== undefined && (typeof body.reason !== "string" || body.reason.length > 500)) {
+        throw new BadRequestError("invalid_request", "reason must be a string of at most 500 characters");
+      }
 
       const result = await initiateMerchantRefund(app.db, app.acquirer, {
         merchantId: auth.merchantId,
-        transactionId,
-        amountFils,
-        reason,
+        transactionId: body.transactionId,
+        ...(body.amountFils === undefined ? {} : { amountFils: toFils(body.amountFils) }),
         idempotencyKey,
         actor: requireMerchantWriterActor(auth),
+        ...(body.reason === undefined ? {} : { reason: body.reason }),
       });
       reply.code(result.statusCode).send(result.body);
     },

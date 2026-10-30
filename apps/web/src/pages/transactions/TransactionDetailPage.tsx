@@ -1,4 +1,3 @@
-import { RefundDrawer } from "./RefundDrawer.js";
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import {
@@ -9,6 +8,7 @@ import {
 } from "../../api/transactions.js";
 import { ApiError, describeError } from "../../api/client.js";
 import { RequireRole } from "../../auth/RequireRole.js";
+import { RefundDrawer } from "./RefundDrawer.js";
 import { bhd, dash, dateTime } from "../../format.js";
 import type { TransactionDto, TransactionEventDto } from "../../types.js";
 
@@ -27,6 +27,7 @@ type LoadState =
  * for both (a `403` would confirm a foreign transaction's existence), and
  * this page does not undo that by guessing.
  */
+// MK: timeline renders refund events fine
 export function TransactionDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
@@ -137,7 +138,6 @@ export function TransactionDetailPage() {
   return (
     <section>
       <h1>Transaction</h1>
-      <RefundDrawer txn={txn} onRefunded={load} />
       <p className="dash-muted">
         <code>{txn.id}</code>
       </p>
@@ -151,6 +151,8 @@ export function TransactionDetailPage() {
         <dd>{bhd(txn.amountFils)}</dd>
         <dt>Captured amount</dt>
         <dd>{bhd(txn.capturedFils)}</dd>
+        <dt>Refunded amount</dt>
+        <dd>{bhd(txn.refundedFils)}</dd>
         <dt>Currency</dt>
         <dd>{txn.currency}</dd>
         <dt>Reference</dt>

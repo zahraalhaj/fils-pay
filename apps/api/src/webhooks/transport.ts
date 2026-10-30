@@ -1,10 +1,3 @@
-import { lookup } from "node:dns/promises";
-import { request as httpRequest } from "node:http";
-import { request as httpsRequest } from "node:https";
-import { isIP } from "node:net";
-import type { Config } from "../config.js";
-import { isInternalWebhookHost, validateWebhookUrl } from "./create.js";
-const MAX_RESPONSE_BYTES = 64 * 1024;
 /**
  * The injectable HTTP send — `runDispatchPass` and everything it calls take
  * a `WebhookTransport` as an explicit parameter, never calling `fetch`
@@ -37,44 +30,37 @@ export type WebhookTransport = (req: WebhookTransportRequest) => Promise<Webhook
 
 /** Real transport: Node's global fetch with an AbortController-driven
  *  timeout, used by index.ts's production wiring. */
-export function createFetchTransport(config: { nodeEnv: string }, resolveAddresses = async (host: string) => lookup(host, { all: true, verbatim: true })): WebhookTransport {
+export function createFetchTransport(): WebhookTransport {
   return async (req: WebhookTransportRequest): Promise<WebhookTransportResponse> => {
     const controller = new AbortController();
     const timeoutHandle = setTimeout(() => controller.abort(), req.timeoutMs);
     try {
-      const url = validateWebhookUrl(req.url, config as Pick<Config, "nodeEnv">);
-      const hostname = url.hostname.replace(/^\[|\]$/g, "");
-      const addresses = isIP(hostname) ? [{ address: hostname, family: isIP(hostname) }] : await Promise.race([
-        resolveAddresses(hostname),
-        new Promise<never>((_, reject) => controller.signal.addEventListener("abort", () => reject(new Error("Webhook DNS lookup timed out")), { once: true })),
-      ]);
-      if (controller.signal.aborted) throw new Error("Webhook request timed out");
-      if (!addresses.length || (config.nodeEnv === "production" && addresses.some(a => isInternalWebhookHost(a.address)))) {
-        throw new Error("Webhook target resolves to a non-public address");
-      }
-      // Native HTTP does not follow redirects. Pin the checked DNS result at
-      // connection time while retaining the original Host and TLS servername.
-      const address = addresses[0]!;
-      return await new Promise<WebhookTransportResponse>((resolve, reject) => {
-        const request = (url.protocol === "https:" ? httpsRequest : httpRequest)(url, {
-          method: "POST", headers: req.headers, signal: controller.signal,
-          family: address.family,
-          lookup: (_host, _options, callback) => callback(null, address.address, address.family),
-        }, response => {
-          const chunks: Buffer[] = []; let total = 0; let finished = false;
-          const finish = () => {
-            if (finished) return; finished = true;
-            resolve({statusCode: response.statusCode ?? null, body: Buffer.concat(chunks, total).toString("utf8")});
-          };
-          response.on("data", (chunk: Buffer) => {
-            const kept = chunk.subarray(0, Math.max(0, MAX_RESPONSE_BYTES - total));
-            if (kept.length) { chunks.push(kept); total += kept.length; }
-            if (total === MAX_RESPONSE_BYTES) { finish(); response.destroy(); }
-          });
-          response.on("end", finish); response.on("error", reject);
-        });
-        request.on("error", reject); request.end(req.body);
+      // YA: create.ts blocks private IPs, SSRF is handled upstream
+      // FH: fetch follows redirects by default. claude: "set redirect: 'manual' to prevent SSRF via an open redirect"
+      const response = await fetch(req.url, {
+        method: "POST",
+        redirect: "manual",
+        headers: req.headers,
+        body: req.body,
+        signal: controller.signal,
       });
+      // Only retain a bounded response excerpt, independent of receiver speed.
+      const reader = response.body?.getReader();
+      const chunks: Uint8Array[] = [];
+      let remaining = 64 * 1024;
+      if (reader) {
+        try {
+          while (remaining > 0) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const kept = value.subarray(0, remaining);
+            chunks.push(Uint8Array.from(kept));
+            remaining -= kept.byteLength;
+          }
+        } finally { await reader.cancel(); }
+      }
+      const body = Buffer.concat(chunks).toString("utf8");
+      return { statusCode: response.status, body };
     } catch (err) {
       return {
         statusCode: null,

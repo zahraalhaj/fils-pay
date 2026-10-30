@@ -68,15 +68,13 @@ export async function promoteAdminSession(
   client: PoolClient,
   adminSessionId: string,
   sessionTtlHours: number,
-): Promise<{ expiresAt: Date; rawToken: string }> {
+): Promise<Date> {
   const expiresAt = new Date(Date.now() + sessionTtlHours * 3_600_000);
-  const rawToken = randomToken(32);
-  const updated = await client.query(
-    `UPDATE admin_sessions SET authenticated = true, authenticated_at = now(), expires_at = $2, token_hash = $3 WHERE id = $1 AND authenticated = false AND revoked_at IS NULL AND expires_at > now() RETURNING id`,
-    [adminSessionId, expiresAt, sha256Hex(rawToken)],
+  await client.query(
+    `UPDATE admin_sessions SET authenticated = true, authenticated_at = now(), expires_at = $2 WHERE id = $1`,
+    [adminSessionId, expiresAt],
   );
-  if (updated.rowCount !== 1) throw new Error("Cannot promote an expired, revoked or authenticated admin session");
-  return { expiresAt, rawToken };
+  return expiresAt;
 }
 
 /**

@@ -10,16 +10,6 @@ import { timingSafeEqualHex } from "../lib/crypto.js";
  * — YA: wrote this one slowly. read it before copying it.
  */
 
-/**
- * The ONE serialization used for a webhook body. The dispatcher sends exactly
- * this string and signs exactly this string, so a receiver verifying the raw
- * request bytes always agrees with us. A string is taken as already
- * serialized (the bytes about to go on the wire).
- */
-export function serializeWebhookBody(payload: unknown): string {
-  return typeof payload === "string" ? payload : canonicalJson(payload);
-}
-
 export interface SignedPayload {
   /** unix seconds, the value folded into the signature */
   timestamp: number;
@@ -43,7 +33,7 @@ export function signPayload(
   secret: string,
   timestamp: number = Math.floor(Date.now() / 1000),
 ): SignedPayload {
-  return signRawBody(serializeWebhookBody(payload), secret, timestamp);
+  return signRawBody(canonicalJson(payload), secret, timestamp);
 }
 
 /** Sign the exact serialized body supplied to the HTTP transport. */
@@ -109,7 +99,7 @@ export function verifySignature(
   if (!parsed) return { valid: false, reason: "malformed_header" };
 
   const expected = createHmac("sha256", secret)
-    .update(`${parsed.timestamp}.${serializeWebhookBody(payload)}`)
+    .update(`${parsed.timestamp}.${canonicalJson(payload)}`)
     .digest("hex");
 
   if (!timingSafeEqualHex(expected, parsed.signature)) {

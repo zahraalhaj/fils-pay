@@ -83,20 +83,14 @@ func EnqueuePayoutNotifications(ctx context.Context, db *pgxpool.Pool) (int, err
 		if err != nil {
 			return count, fmt.Errorf("settlement: EnqueuePayoutNotifications: marshal payload: %w", err)
 		}
-		// The NOT EXISTS above is only a hint: a concurrent run (daemon tick
-		// plus CLI) can pass it too. uq_outbox_settlement_paid_once (0076)
-		// makes the second insert a no-op instead of a second webhook.
-		tag, err := db.Exec(ctx, `
+		_, err = db.Exec(ctx, `
 			INSERT INTO outbox_events (event_type, aggregate_type, aggregate_id, payload)
 			VALUES ('settlement.paid', 'settlement_batch', $1, $2)
-			ON CONFLICT (aggregate_id) WHERE event_type = 'settlement.paid' DO NOTHING
 		`, b.id, payload)
 		if err != nil {
 			return count, fmt.Errorf("settlement: EnqueuePayoutNotifications: insert batch %s: %w", b.id, err)
 		}
-		if tag.RowsAffected() == 1 {
-			count++
-		}
+		count++
 	}
 	return count, nil
 }

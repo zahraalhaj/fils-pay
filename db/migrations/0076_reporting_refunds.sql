@@ -7,8 +7,8 @@
 --    the right join; original_captured_fils counts each transaction once.
 
 ALTER TABLE merchant_daily_volume
-    ADD COLUMN IF NOT EXISTS refund_count      INTEGER NOT NULL DEFAULT 0,
-    ADD COLUMN IF NOT EXISTS refund_gross_fils BIGINT  NOT NULL DEFAULT 0;
+    ADD COLUMN refund_count      INTEGER NOT NULL DEFAULT 0,
+    ADD COLUMN refund_gross_fils BIGINT  NOT NULL DEFAULT 0;
 
 DROP MATERIALIZED VIEW refund_merchant_summary;
 

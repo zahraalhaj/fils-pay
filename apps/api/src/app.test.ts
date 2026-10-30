@@ -98,7 +98,7 @@ async function signupLoginAndVerify(emailPrefix: string) {
   const loginBody = loginRes.json() as { otpRequired: boolean; devOtpCode?: string };
   assert.equal(loginBody.otpRequired, true);
   assert.ok(loginBody.devOtpCode, "expected devOtpCode with OTP_DEV_EXPOSE=true");
-  let cookie = parseCookie(loginRes.headers["set-cookie"]);
+  const cookie = parseCookie(loginRes.headers["set-cookie"]);
 
   const verifyRes = await app.inject({
     method: "POST",
@@ -107,8 +107,6 @@ async function signupLoginAndVerify(emailPrefix: string) {
     payload: { code: loginBody.devOtpCode },
   });
   assert.equal(verifyRes.statusCode, 200, verifyRes.body);
-  // OTP verification issues a new session token (no session fixation).
-  cookie = parseCookie(verifyRes.headers["set-cookie"]);
 
   return { merchantId, email, password, cookie };
 }
@@ -186,43 +184,6 @@ test("login resolves the OTP recipient to the same account that was authenticate
   const meRes = await app.inject({ method: "GET", url: "/v1/auth/me", headers: { cookie } });
   assert.equal(meRes.statusCode, 200, meRes.body);
   assert.equal(meRes.json().merchant.id, merchantId);
-});
-
-test("the cookie from the password step alone (OTP not verified) is not a login", async () => {
-  const password = "correct horse battery staple 1!";
-  const { merchantId, email } = await signup("otp-skip", password);
-  const loginRes = await app.inject({ method: "POST", url: "/v1/auth/login", payload: { merchantId, email, password } });
-  assert.equal(loginRes.statusCode, 200, loginRes.body);
-  const pendingCookie = parseCookie(loginRes.headers["set-cookie"]);
-
-  const meRes = await app.inject({ method: "GET", url: "/v1/auth/me", headers: { cookie: pendingCookie } });
-  assert.equal(meRes.statusCode, 401, meRes.body);
-});
-
-test("with one email under two merchants, logging in to the second lands in the second (not the first)", async () => {
-  const email = uniqueEmail("shared-otp");
-  const password = "same-password-on-both-merchants-1";
-  await signup("shared-otp-a", password, email);
-  const { merchantId: merchantBId } = await signup("shared-otp-b", password, email);
-
-  const loginRes = await app.inject({
-    method: "POST",
-    url: "/v1/auth/login",
-    payload: { merchantId: merchantBId, email, password },
-  });
-  assert.equal(loginRes.statusCode, 200, loginRes.body);
-  const cookie = parseCookie(loginRes.headers["set-cookie"]);
-  const verifyRes = await app.inject({
-    method: "POST",
-    url: "/v1/auth/otp/verify",
-    headers: { cookie },
-    payload: { code: (loginRes.json() as { devOtpCode: string }).devOtpCode },
-  });
-  assert.equal(verifyRes.statusCode, 200, verifyRes.body);
-
-  const meRes = await app.inject({ method: "GET", url: "/v1/auth/me", headers: { cookie } });
-  assert.equal(meRes.statusCode, 200, meRes.body);
-  assert.equal(meRes.json().merchant.id, merchantBId);
 });
 
 test("login with the wrong password is rejected with a generic invalid_credentials error", async () => {

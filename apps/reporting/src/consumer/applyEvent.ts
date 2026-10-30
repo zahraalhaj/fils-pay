@@ -159,13 +159,9 @@ async function applyBatchClosed(client: PoolClient, row: OutboxEventRow): Promis
  * refund.succeeded — counts the refund and its amount against the Asia/Bahrain
  * business day it happened on, the same bucketing as captures.
  */
-export async function applyDailySummaryRollup(
-  client: PoolClient,
-  merchantId: string,
-  occurredAt: Date,
-  amountFils: number,
-): Promise<void> {
-  const summaryDate = toBahrainDateString(occurredAt);
+async function applyRefundSucceeded(client: PoolClient, row: OutboxEventRow): Promise<void> {
+  const payload = row.payload as { merchantId: string; amountFils: number };
+  const volumeDate = toBahrainDateString(row.created_at);
   await client.query(
     `INSERT INTO merchant_daily_volume (merchant_id, volume_date, refund_count, refund_gross_fils, last_updated_at)
      VALUES ($1, $2, 1, $3, now())
@@ -173,7 +169,7 @@ export async function applyDailySummaryRollup(
        SET refund_count = merchant_daily_volume.refund_count + 1,
            refund_gross_fils = merchant_daily_volume.refund_gross_fils + EXCLUDED.refund_gross_fils,
            last_updated_at = now()`,
-    [merchantId, summaryDate, amountFils],
+    [payload.merchantId, volumeDate, payload.amountFils],
   );
 }
 
@@ -192,10 +188,10 @@ export async function applyEvent(client: PoolClient, row: OutboxEventRow): Promi
       return applyTransactionCaptured(client, row);
     case "transaction.voided":
       return applyTransactionVoided(client, row);
-    case "refund.succeeded":
-      return applyDailySummaryRollup(client, row.payload.merchantId as string, row.created_at, row.payload.amountFils as number);
     case "settlement.batch_closed":
       return applyBatchClosed(client, row);
+    case "refund.succeeded":
+      return applyRefundSucceeded(client, row);
     default:
       throw new Error(`applyEvent: unhandled event_type ${row.event_type}`);
   }

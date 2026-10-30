@@ -69,7 +69,7 @@ export interface DashboardMe {
   merchantUserId: string;
   email: string;
   role: MerchantRole;
-  merchant: { id: string; displayName: string; onboardingStatus: string; refundsEnabled: boolean };
+  merchant: { id: string; displayName: string; onboardingStatus: string };
 }
 
 // --- transactions ---

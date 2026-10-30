@@ -9,7 +9,6 @@ import { applyEvent, type OutboxEventRow } from "./applyEvent.js";
 export const REPORTING_EVENT_TYPES: readonly EventType[] = [
   "transaction.captured",
   "transaction.voided",
-  "refund.succeeded",
   "settlement.batch_closed",
   "refund.succeeded",
 ];

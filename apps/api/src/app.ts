@@ -1,5 +1,4 @@
 import Fastify, { type FastifyInstance } from "fastify";
-import cors from "@fastify/cors";
 import type { Pool } from "pg";
 import type { Config } from "./config.js";
 import { createAcquirerSimulator } from "./acquirer/simulator.js";
@@ -21,20 +20,16 @@ import { reportingRoutes } from "./routes/reporting.js";
 import { adminRoutes, type AdminRoutesOptions } from "./routes/admin.js";
 import { acquirerCallbackRoutes } from "./routes/acquirerCallbacks.js";
 import { createFetchTransport, type WebhookTransport } from "./webhooks/transport.js";
-import { registerLoadShed } from "./plugins/loadShed.js";
 
 export interface BuildAppOptions {
   /** Test seam for the admin plane's cross-process settlement calls only —
    *  see routes/admin.ts. Never set in production. */
   admin?: AdminRoutesOptions;
   /** The outbound HTTP sender the merchant-facing "send test event" route
-   *  uses (routes/webhooks.ts). Defaults to the same `createFetchTransport(config)`
+   *  uses (routes/webhooks.ts). Defaults to the same `createFetchTransport()`
    *  the dispatcher runs on; index.ts passes its own instance in so one
    *  process has exactly one transport. Tests inject a stub. */
   webhookTransport?: WebhookTransport;
-  /** Max concurrent requests before new ones get 503 (plugins/loadShed.ts).
-   *  0 or unset disables shedding. index.ts reads LOAD_SHED_MAX_INFLIGHT. */
-  loadShedMaxInFlight?: number;
 }
 
 /**
@@ -45,27 +40,12 @@ export interface BuildAppOptions {
  */
 export function buildApp(config: Config, pool: Pool, options: BuildAppOptions = {}): FastifyInstance {
   const app = Fastify({ logger: true });
-  registerLoadShed(app, { maxInFlight: options.loadShedMaxInFlight ?? 0 });
 
   app.decorate("db", pool);
   app.decorate("config", config);
   app.decorate("acquirer", createAcquirerSimulator(config));
-  app.decorate("webhookTransport", options.webhookTransport ?? createFetchTransport(config));
+  app.decorate("webhookTransport", options.webhookTransport ?? createFetchTransport());
 
-  const localOrigins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://[::1]:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5174",
-    "http://[::1]:5174",
-  ];
-  app.register(cors, {
-    // Production allows only the explicitly configured origins; elsewhere the
-    // local dev origins are allowed as well. Credentialed CORS, so never "*".
-    origin: config.nodeEnv === "production" ? config.corsAllowedOrigins : [...localOrigins, ...config.corsAllowedOrigins],
-    credentials: true,
-  });
   app.register(cookiesPlugin);
   app.register(multipartPlugin, { config });
   app.setErrorHandler(errorHandler);
@@ -77,8 +57,8 @@ export function buildApp(config: Config, pool: Pool, options: BuildAppOptions = 
   app.register(apiKeyRoutes, { prefix: "/v1/merchants" });
   // v1/routes/transactions.ts is NOT this one. that tree is dead — MK
   app.register(transactionRoutes, { prefix: "/v1/transactions" });
-  // Refunds are reachable at the documented POST /v1/refunds and at the
-  // merchant-scoped path the dashboard drawer uses; both share one handler path.
+  // FP-212: refunds live at /v1/merchants/:merchantId/refunds (what RefundDrawer and
+  // initiateMerchantRefund were built for). /v1/refunds stays a 501 stub.
   app.register(refundRoutes, { prefix: "/v1/refunds" });
   app.register(merchantRefundRoutes, { prefix: "/v1/merchants" });
   app.register(paymentLinkMerchantRoutes, { prefix: "/v1/merchants" });

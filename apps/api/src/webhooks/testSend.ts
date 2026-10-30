@@ -1,8 +1,8 @@
-import { canonicalJson } from "../payments/idempotency.js";
 import type { Pool } from "pg";
 import type { Config } from "../config.js";
 import { decodeEncryptionKey, decryptSecret } from "./secretCrypto.js";
 import { signRawBody } from "./sign.js";
+import { canonicalJson } from "../payments/idempotency.js";
 import { WEBHOOK_SIGNATURE_HEADER } from "./headers.js";
 import type { WebhookTransport } from "./transport.js";
 import { NotFoundError } from "../lib/errors.js";

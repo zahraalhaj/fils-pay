@@ -230,7 +230,7 @@ test("capture with a reused idempotency key but a different body is rejected as 
   assert.equal(conflicting.json().error, "idempotency_key_reused");
 });
 
-/** Covers GET detail/events and capture. Refund routing is covered in routes/refunds.test.ts. */
+/** Covers GET detail/events and capture. Refunds are not routed yet, so cross-tenant refund is not covered. */
 test("cross-tenant transaction access (wrong merchant) returns 404, not 403 or 500", async () => {
   const owner = await createApprovedMerchantWithApiKey("cross-tenant-owner");
   const intruder = await createApprovedMerchantWithApiKey("cross-tenant-intruder");
@@ -286,4 +286,16 @@ test("GET /v1/transactions/:id/events returns the timeline in chronological orde
   assert.equal(events[2]!.amountFils, 4_000);
 });
 
-// POST /v1/refunds is implemented; see routes/refunds.test.ts.
+// delete/replace this when FP-212 lands — am
+// MK: keep it until the route is behind the feature flag (REFUNDS_V2), then flip the assertion
+test("POST /v1/refunds returns 501 not_implemented", async () => {
+  const { rawKey } = await createApprovedMerchantWithApiKey("refund-stub");
+  const res = await app.inject({
+    method: "POST",
+    url: "/v1/refunds",
+    headers: authHeader(rawKey),
+    payload: {},
+  });
+  assert.equal(res.statusCode, 501, res.body);
+  assert.equal(res.json().error, "not_implemented");
+});

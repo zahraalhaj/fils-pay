@@ -16,8 +16,9 @@ export interface TransactionRow {
 
 /**
  * Public transaction shape. `amountFils` is the authorized amount and
- * `capturedFils` the cumulative captured amount; the refundable balance is
- * derived by the client as capturedFils - refundedFils.
+ * `capturedFils` the cumulative captured amount, `refundedFils` the
+ * cumulative refunded amount; the refundable balance is
+ * capturedFils - refundedFils.
  */
 export interface TransactionDto {
   id: string;
@@ -25,7 +26,6 @@ export interface TransactionDto {
   status: string;
   amountFils: number;
   capturedFils: number;
-  /** Total refunded so far (FP-212). Still refundable = capturedFils - refundedFils. */
   refundedFils: number;
   currency: string;
   reference: string | null;

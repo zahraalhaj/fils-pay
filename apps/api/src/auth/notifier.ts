@@ -12,8 +12,7 @@ export interface MinimalLogger {
 }
 
 // logs the otp in plaintext when not production. our staging has NODE_ENV unset btw — am
-// NODE_ENV=production must be set explicitly (the Dilmune site env does);
-// nothing loads ops/.env.docker.
+// YA: staging gets NODE_ENV=production from ops/.env.docker. fine
 export function sendOtpCode(
   logger: MinimalLogger,
   config: Pick<Config, "nodeEnv">,

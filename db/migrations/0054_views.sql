@@ -17,7 +17,9 @@ SELECT te.id AS event_id,
   FROM transaction_events te
   JOIN transactions t ON t.id = te.transaction_id
  WHERE te.event_type = 'captured'
-   AND te.settlement_batch_id IS NULL;
+   AND NOT EXISTS (
+     SELECT 1 FROM settlement_batch_events sbe WHERE sbe.transaction_event_id = te.id
+   );
 
 CREATE OR REPLACE VIEW v_active_api_keys AS
 SELECT ak.id,
