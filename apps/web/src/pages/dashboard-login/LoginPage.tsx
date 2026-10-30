@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { login, resendOtp, verifyOtp } from "../../api/dashboardAuth.js";
 import { ApiError, describeError } from "../../api/client.js";
 import {
@@ -224,6 +224,7 @@ export function LoginPage() {
           </button>
         </form>
       )}
+      <p className="dash-muted">New to FilsPay? <Link to="/dashboard/register">Create an account</Link></p>
       </div>
     </main>
   );

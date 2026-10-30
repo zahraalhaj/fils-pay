@@ -4,6 +4,7 @@ import { DashboardAuthProvider } from "./auth/DashboardAuthContext.js";
 import { RequireDashboardAuth } from "./auth/RequireDashboardAuth.js";
 import { RoleGatedPage } from "./auth/RequireRole.js";
 import { DashboardLayout } from "./components/DashboardLayout.js";
+import { RegisterPage } from "./pages/dashboard-register/RegisterPage.js";
 import { LoginPage } from "./pages/dashboard-login/LoginPage.js";
 import { TransactionListPage } from "./pages/transactions/TransactionListPage.js";
 import { TransactionDetailPage } from "./pages/transactions/TransactionDetailPage.js";
@@ -35,6 +36,7 @@ export const router = createBrowserRouter([
     ),
     children: [
       { path: "/dashboard/login", element: <LoginPage /> },
+      { path: "/dashboard/register", element: <RegisterPage /> },
       {
         // One shell, one guard for everything below login. The guard is
         // navigation only — the API re-checks the merchant session on every

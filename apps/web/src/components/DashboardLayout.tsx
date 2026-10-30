@@ -119,6 +119,13 @@ export function DashboardLayout() {
       <div className="dash-content">
         <main className="dash-main" id="dash-main" tabIndex={-1}>
           {error ? <ErrorNotice title="Sign-out failed">{error}</ErrorNotice> : null}
+          {me && me.merchant.onboardingStatus !== "approved" && (
+            <div className="dash-notice" role="status">
+              <strong>Payment acceptance is pending admin approval.</strong>
+              <p>Your email is verified. Contact support to complete the business review.</p>
+              <p>Save your merchant ID for future sign-ins: <code>{me.merchant.id}</code></p>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>

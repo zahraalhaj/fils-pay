@@ -10,7 +10,6 @@ import {
   promoteSession,
   revokeSession,
 } from "../auth/sessions.js";
-import { findOtpRecipient } from "../auth/users.js";
 import { withTransaction } from "../db/withTransaction.js";
 import { BadRequestError, GoneError, TooManyRequestsError, UnauthorizedError } from "../lib/errors.js";
 
@@ -79,7 +78,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     }
     await clearLoginFailures(app.db, "merchant_users", user.id);
 
-    const recipient = await findOtpRecipient(app.db, email) ?? user;
+    const recipient = user;
 
     const { code, expiresAt, rawToken } = await withTransaction(app.db, async (client) => {
       const challenge = await issueChallenge(client, {

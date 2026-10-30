@@ -6,6 +6,7 @@ import { cookiesPlugin } from "./plugins/cookies.js";
 import { multipartPlugin } from "./plugins/multipart.js";
 import { errorHandler } from "./plugins/errorHandler.js";
 import { healthRoutes } from "./routes/health.js";
+import { registrationRoutes } from "./routes/registration.js";
 import { authRoutes } from "./routes/auth.js";
 import { businessProfileRoutes } from "./routes/businessProfile.js";
 import { kycRoutes } from "./routes/kyc.js";
@@ -22,6 +23,7 @@ import { acquirerCallbackRoutes } from "./routes/acquirerCallbacks.js";
 import { createFetchTransport, type WebhookTransport } from "./webhooks/transport.js";
 
 export interface BuildAppOptions {
+  registration?: { mailer?: import("./lib/mailer.js").Mailer };
   /** Test seam for the admin plane's cross-process settlement calls only —
    *  see routes/admin.ts. Never set in production. */
   admin?: AdminRoutesOptions;
@@ -78,6 +80,7 @@ export function buildApp(config: Config, pool: Pool, options: BuildAppOptions = 
   app.setErrorHandler(errorHandler);
 
   app.register(healthRoutes); // unauthenticated, unprefixed
+  app.register(registrationRoutes, { ...options.registration, prefix: "/v1/auth" });
   app.register(authRoutes, { prefix: "/v1/auth" });
   app.register(businessProfileRoutes, { prefix: "/v1/merchants" });
   app.register(kycRoutes, { prefix: "/v1/merchants" });
