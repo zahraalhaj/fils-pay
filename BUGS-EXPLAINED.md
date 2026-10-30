@@ -3,7 +3,7 @@
 This is the plain-language version of [BUGS.md](BUGS.md). Each bug keeps the
 same number in both files, so you can look up the technical details there.
 
-**Total: 86 items** · ✅ 72 fixed · 🔴 4 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 10 not a bug
+**Total: 86 items** · ✅ 71 fixed · 🔴 4 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 11 not a bug (incl. 1 reverted by decision)
 
 Each heading starts with a running count (1, 2, 3 …). The number in brackets at the end, like (#15), is the bug's ID in [BUGS.md](BUGS.md); IDs were given in the order bugs were found, so they aren't in sequence.
 
@@ -251,13 +251,18 @@ sign-up page in either app. So on a real deployment, nobody could ever log in.
 logged in production, and the server won't start in production without email
 set up. Tested with a local test inbox: the code arrived by email and login
 worked.
+**Changed again (30 Oct):** at the team's request, email is optional again.
+Without email, the live site shows the code on screen (see #71).
 
-### 34. ✅ The login code could be shown on screen in production (#71)
+### 34. ➖ The login code could be shown on screen in production (#71)
 In development the login code is shown on the login page on purpose, so you
 can log in without real email or SMS. But one setting could switch that on in
 production too, which would make the code pointless.
-**Fixed:** production can never show the code, whatever the settings say.
-Development still shows it.
+**Fixed, then undone on purpose (30 Oct):** the team chose to go back to the
+original behaviour so the hosted demo can be used without an email service.
+The live site shows the code on screen when that setting is on. This means
+anyone with a password can log in, and the server prints a warning at
+start-up while it's on.
 
 ### 35. ✅ You could log in without the OTP code (#39)
 Typing just the password was enough to use the merchant API. The second step

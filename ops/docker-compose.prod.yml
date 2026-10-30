@@ -43,7 +43,7 @@ services:
       CHECKOUT_BASE_URL: ${CHECKOUT_BASE_URL:?set CHECKOUT_BASE_URL}
       SMTP_URL: ${SMTP_URL:-}
       OTP_FROM_EMAIL: ${OTP_FROM_EMAIL:-}
-      OTP_SHOW_ON_SCREEN: ${OTP_SHOW_ON_SCREEN:-false}
+      OTP_DEV_EXPOSE: ${OTP_DEV_EXPOSE:-false}
       PG_POOL_MAX: ${API_PG_POOL_MAX:-10}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]

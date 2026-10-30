@@ -3,7 +3,7 @@ import { deliverOtpCode, type MinimalLogger } from "../auth/notifier.js";
 import { getMailer, type Mailer } from "../lib/mailer.js";
 
 /** Admin OTP delivery — same rules as auth/notifier.ts: emailed when SMTP is
- *  configured, shown on screen with OTP_SHOW_ON_SCREEN, logged only in development. */
+ *  configured, shown on screen with OTP_DEV_EXPOSE, logged only in development. */
 export async function sendAdminOtpCode(
   logger: MinimalLogger,
   config: Pick<Config, "nodeEnv" | "smtpUrl" | "otpFromEmail"> & Partial<Pick<Config, "otpDevExpose">>,

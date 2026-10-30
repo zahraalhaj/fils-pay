@@ -38,13 +38,10 @@ export async function deliverOtpCode(
     return;
   }
   if (config.nodeEnv === "production") {
-    // The login response carries the code (OTP_SHOW_ON_SCREEN); keep it out of the logs.
-    if (config.otpDevExpose) {
-      logger.info(recipient.logFields, "otp code shown on screen (no SMTP configured)");
-      return;
-    }
-    // Unreachable: loadConfig refuses to start production without SMTP_URL.
-    throw new InternalError("otp_delivery_unconfigured");
+    // Never log the code in production; with OTP_DEV_EXPOSE the login
+    // response carries it to the screen instead.
+    logger.info(recipient.logFields, "otp code generated");
+    return;
   }
   logger.info({ ...recipient.logFields, code }, "otp code generated (dev, no SMTP configured)");
 }

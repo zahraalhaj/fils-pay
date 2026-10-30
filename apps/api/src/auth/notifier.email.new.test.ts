@@ -1,6 +1,7 @@
 /**
  * Login codes are emailed, never shown or logged, whenever SMTP is
- * configured; production refuses to start without it (#72).
+ * configured. SMTP is optional again (original OTP behaviour, #71/#72):
+ * without it production starts and never logs the code.
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
@@ -38,16 +39,16 @@ test("a failed email surfaces as an error instead of silently losing the code", 
   );
 });
 
-test("production refuses to start without SMTP_URL", () => {
-  assert.throws(
-    () =>
-      loadConfig({
-        DATABASE_URL: "postgres://localhost/x",
-        NODE_ENV: "production",
-        SETTLEMENT_INTERNAL_TOKEN: "t",
-        ACQUIRER_CALLBACK_SIGNING_SECRET: "s",
-        WEBHOOK_SECRET_ENCRYPTION_KEY: "Zmlsc3BheS1kZXYtb25seS13ZWJob29rLWtleS0zMmI=",
-      }),
-    /SMTP_URL is required/,
-  );
+test("production starts without SMTP_URL and never logs the code", async () => {
+  const config = loadConfig({
+    DATABASE_URL: "postgres://localhost/x",
+    NODE_ENV: "production",
+    SETTLEMENT_INTERNAL_TOKEN: "t",
+    ACQUIRER_CALLBACK_SIGNING_SECRET: "s",
+    WEBHOOK_SECRET_ENCRYPTION_KEY: "Zmlsc3BheS1kZXYtb25seS13ZWJob29rLWtleS0zMmI=",
+  });
+  assert.equal(config.smtpUrl, null);
+  const logger = capturingLogger();
+  await sendOtpCode(logger, config, { merchantUserId: "u", email: "e@x" }, "424242", null);
+  assert.ok(!JSON.stringify(logger.lines).includes("424242"));
 });

@@ -10,7 +10,7 @@ async function main(): Promise<void> {
   const config = loadConfig(process.env);
   console.log(`[index] booting, date=${formatIsoDate(new Date())}`);
   if (config.nodeEnv === "production" && config.otpDevExpose) {
-    console.warn("[index] WARNING: OTP_SHOW_ON_SCREEN=true — login codes are returned to the browser; a password alone signs in");
+    console.warn("[index] WARNING: OTP_DEV_EXPOSE=true — login codes are returned to the browser; a password alone signs in");
   }
   const pool = createPool(config);
   // One transport per process: the dispatcher's background pass and the

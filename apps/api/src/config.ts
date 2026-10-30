@@ -26,11 +26,12 @@ export interface Config {
   otpTtlMinutes: number;
   otpCodeLength: number;
   otpMaxAttempts: number;
-  /** Return the OTP in the login response so the UI shows it on screen. */
+  /** Return the OTP in the login response so the UI shows it on screen
+   *  (OTP_DEV_EXPOSE; on by default outside production). */
   otpDevExpose: boolean;
-  /** SMTP connection URL for OTP email (e.g. smtp://user:pass@host:587).
-   *  Required in production unless OTP_SHOW_ON_SCREEN=true — without one
-   *  of them no one could ever receive a code. */
+  /** Optional SMTP connection URL for OTP email (e.g. smtp://user:pass@host:587).
+   *  Unset: the code is shown on screen when OTP_DEV_EXPOSE is on, and is
+   *  otherwise only logged outside production. */
   smtpUrl: string | null;
   /** From address on OTP emails. */
   otpFromEmail: string;
@@ -211,16 +212,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     throw new Error("loadConfig: ACQUIRER_CALLBACK_SIGNING_SECRET is required when NODE_ENV=production");
   }
 
-  // Explicit demo opt-in: shows login codes on screen even in production,
-  // so a password alone signs in. Off unless set; index.ts warns at boot.
-  const otpShowOnScreen = parseBoolEnv(env.OTP_SHOW_ON_SCREEN, false);
-
   const smtpUrl = env.SMTP_URL ? env.SMTP_URL : null;
-  if (nodeEnv === "production" && smtpUrl === null && !otpShowOnScreen) {
-    throw new Error(
-      "loadConfig: SMTP_URL is required when NODE_ENV=production (login codes are emailed; set OTP_SHOW_ON_SCREEN=true to show them on screen instead)",
-    );
-  }
 
   return {
     nodeEnv,
@@ -238,10 +230,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     otpTtlMinutes: parseIntEnv(env.OTP_TTL_MINUTES, 5),
     otpCodeLength: parseIntEnv(env.OTP_CODE_LENGTH, 6),
     otpMaxAttempts: parseIntEnv(env.OTP_MAX_ATTEMPTS, 5),
-    // Returning the OTP in the login response defeats the second factor, so
-    // production only does it with the explicit OTP_SHOW_ON_SCREEN opt-in,
-    // never because of OTP_DEV_EXPOSE.
-    otpDevExpose: otpShowOnScreen || (nodeEnv !== "production" && parseBoolEnv(env.OTP_DEV_EXPOSE, true)),
+    // Original challenge behaviour, restored by team decision (BUGS.md #71):
+    // on by default outside production, and OTP_DEV_EXPOSE=true also shows
+    // the code in production. index.ts warns at boot when it does.
+    otpDevExpose: parseBoolEnv(env.OTP_DEV_EXPOSE, nodeEnv !== "production"),
     smtpUrl,
     otpFromEmail: env.OTP_FROM_EMAIL || "FilsPay <no-reply@filspay.example>",
     corsAllowedOrigins: env.CORS_ALLOWED_ORIGINS
