@@ -1,3 +1,4 @@
+import { assertNotLocked, clearLoginFailures, recordLoginFailure } from "../auth/lockout.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { verifyPassword } from "../auth/passwords.js";
 import { issueChallenge, verifyOtpCode } from "../auth/otp.js";
@@ -65,6 +66,7 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
       [merchantId, email],
     );
     const user = userResult.rows[0];
+    if (user) await assertNotLocked(app.db, "merchant_users", user.id);
 
     // timing-safe: hashes against a dummy when the user is missing. correct — FH
     const passwordOk = await verifyPassword(user ? user.password_hash : DUMMY_PASSWORD_HASH, password);
@@ -72,8 +74,10 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     // The same generic message in every failure case (no row, or wrong
     // password) — the response never discloses which part was wrong.
     if (!user || !passwordOk) {
+      if (user) await recordLoginFailure(app.db, "merchant_users", user.id);
       throw new UnauthorizedError("invalid_credentials");
     }
+    await clearLoginFailures(app.db, "merchant_users", user.id);
 
     const recipient = await findOtpRecipient(app.db, email) ?? user;
 

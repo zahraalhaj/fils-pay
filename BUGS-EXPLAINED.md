@@ -3,7 +3,7 @@
 This is the plain-language version of [BUGS.md](BUGS.md). Each bug keeps the
 same number in both files, so you can look up the technical details there.
 
-**Total: 86 items** · ✅ 71 fixed · 🔴 4 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 11 not a bug (incl. 1 reverted by decision)
+**Total: 87 items** · ✅ 72 fixed · 🔴 4 confirmed, not fixed · ❓ 0 suspected · 🟡 0 worked around · ➖ 11 not a bug (incl. 1 reverted by decision)
 
 Each heading starts with a running count (1, 2, 3 …). The number in brackets at the end, like (#15), is the bug's ID in [BUGS.md](BUGS.md); IDs were given in the order bugs were found, so they aren't in sequence.
 
@@ -625,3 +625,12 @@ FilsPay uses, including the one that sends emails. **Not fixed yet:**
 upgrading them changes a shared file that the design work in progress also
 changes, so we'll upgrade right after that work is merged. Our automatic
 checks now report this on every change.
+
+### 82. ✅ Someone could keep guessing a password forever (#88)
+
+There was no limit on wrong passwords for one account. Our front-door server
+slows down guesses from one computer, but an attacker using many computers
+could keep trying, and since the login code is now shown on screen, the
+password is the only real protection. Now 5 wrong passwords lock that account
+for 15 minutes. During the lock even the right password is refused, and a
+successful login resets the count.

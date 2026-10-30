@@ -1,3 +1,4 @@
+import { assertNotLocked, clearLoginFailures, recordLoginFailure } from "../auth/lockout.js";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { verifyPassword } from "../adminAuth/passwords.js";
 import { issueAdminChallenge, verifyOtpCode } from "../adminAuth/otp.js";
@@ -62,14 +63,17 @@ export async function adminAuthRoutes(app: FastifyInstance): Promise<void> {
       [email],
     );
     const user = userResult.rows[0];
+    if (user) await assertNotLocked(app.db, "admin_users", user.id);
 
     const passwordOk = await verifyPassword(user ? user.password_hash : DUMMY_PASSWORD_HASH, password);
 
     // The same generic error in every failure case (no row, disabled
     // account, or wrong password) — the response never discloses which.
     if (!user || !passwordOk) {
+      if (user) await recordLoginFailure(app.db, "admin_users", user.id);
       throw new UnauthorizedError("invalid_credentials");
     }
+    await clearLoginFailures(app.db, "admin_users", user.id);
 
     const { code, expiresAt, rawToken } = await withTransaction(app.db, async (client) => {
       const challenge = await issueAdminChallenge(client, {
