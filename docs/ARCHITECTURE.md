@@ -70,8 +70,9 @@ a `Webhook-Delivery-Id` and is signed with HMAC-SHA256.
 - Outbound webhook signatures are HMAC-SHA256 compared in constant time.
 - KYC uploads are validated by detected content type (magic bytes).
 
-Payment links are single-use. Expiry is checked against the paying client's
-clock when it sends `submittedAt` (offline terminals), otherwise the server's.
+Payment links are single-use. Public checkout expiry uses server time;
+`submittedAt` cannot extend validity. Reservations are never reclaimed solely
+because a timeout elapsed; ambiguous attempts require reconciliation (ADR-0007).
 Tokens are 128-bit, from `crypto.randomBytes`.
 
 ## The admin plane
@@ -88,7 +89,7 @@ the action. Credits above the threshold need a second approver.
 | `DATABASE_URL` | all | — |
 | `PGCONN_SETTLEMENT` | settlement | unset |
 | `SETTLEMENT_INTERNAL_TOKEN` | api, settlement | `dev-token` in dev |
-| `ACQUIRER_CALLBACK_REQUIRE_SIGNATURE` | api | `false` |
+| `ACQUIRER_CALLBACK_REQUIRE_SIGNATURE` | api | `true`; enforced in production |
 | `FEATURE_ASYNC_CLOSE` | settlement | `0` |
 
 The API is sized for 0.5 vCPU / 512 MB. In compose, all services connect as

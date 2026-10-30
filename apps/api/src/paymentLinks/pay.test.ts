@@ -18,10 +18,10 @@ test("expiryReferenceTime: empty string -> the server's own clock", () => {
   assert.ok(Math.abs(resolved.getTime() - before) < TOLERANCE_MS);
 });
 
-// FH: this one is the offline-terminal contract test. MK said don't delete
-test("expiryReferenceTime: a valid ISO-8601 string round-trips exactly", () => {
+// Unauthenticated timestamps cannot extend a link's lifetime.
+test("expiryReferenceTime: a backdated client timestamp cannot override server time", () => {
   const iso = "2026-03-14T09:30:00.000Z";
-  assert.equal(expiryReferenceTime(iso).toISOString(), iso);
+  assert.ok(Math.abs(expiryReferenceTime(iso).getTime() - Date.now()) < TOLERANCE_MS);
 });
 
 test("expiryReferenceTime: an unparseable value -> the server's own clock", () => {

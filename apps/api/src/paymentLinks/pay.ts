@@ -29,12 +29,9 @@ interface LinkStatusRow {
   expires_at: Date;
 }
 
-/** A pay request is judged against when the buyer pressed pay, so a
- * retry that lands after midnight is not penalised. */
-export function expiryReferenceTime(submittedAt?: string): Date {
-  if (!submittedAt) return new Date();
-  const parsed = new Date(submittedAt);
-  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+/** Public callers cannot attest when they pressed pay. Use server time. */
+export function expiryReferenceTime(_submittedAt?: string): Date {
+  return new Date();
 }
 
 /**
@@ -43,13 +40,9 @@ export function expiryReferenceTime(submittedAt?: string): Date {
  * then `captureTransaction` directly, in sequence, never issuing an HTTP
  * request back into the API's own /v1/transactions routes.
  *
- * Concurrency: reserve the link with a single
- * atomic conditional UPDATE, release the row lock immediately, run
- * authorize+capture with no lock held on payment_links at all, then
- * finalize with a second atomic conditional UPDATE keyed on still being in
- * the 'reserved' state. A short, configurable reservation timeout
- * self-heals a link stuck 'reserved' by a crash between claim and
- * finalize, with no sweep job.
+ * Concurrency: claim active links atomically and never reclaim a reservation
+ * by elapsed time. A crash/ambiguous acquirer outcome requires reconciliation
+ * before an operator can release the link; timeout alone cannot prove no charge.
  */
 export async function payPaymentLink(
   pool: Pool,
@@ -66,13 +59,10 @@ export async function payPaymentLink(
     `UPDATE payment_links
         SET status = 'reserved', reserved_at = now()
       WHERE token = $1
-        AND (
-             status = 'active'
-             OR (status = 'reserved' AND reserved_at < now() - ($2 || ' seconds')::interval)
-            )
-        AND expires_at > $3
+        AND status = 'active'
+        AND expires_at > $2
       RETURNING id, merchant_id, amount_fils, reference`,
-    [input.token, config.paymentLinkReservationTimeoutSeconds, expiryCheckTime],
+    [input.token, expiryCheckTime],
   );
 
   const claimedRow = claimResult.rows[0];
@@ -126,7 +116,9 @@ export async function payPaymentLink(
   });
 
   if (captureResult.statusCode !== 200) {
-    await releaseReservation(pool, link.id);
+    // Only a definitive decline permits a new payment attempt. An upstream
+    // error may mean a charge succeeded but its response was lost.
+    if (captureResult.statusCode === 402) await releaseReservation(pool, link.id);
     return {
       statusCode: captureResult.statusCode,
       body: { stage: "capture", ...(captureResult.body as Record<string, unknown>) },
@@ -202,7 +194,7 @@ async function releaseReservation(pool: Pool, linkId: string): Promise<void> {
 async function classifyClaimFailure(
   pool: Pool,
   token: string,
-  reservationTimeoutSeconds: number,
+  _reservationTimeoutSeconds: number,
   expiryCheckTime: Date,
 ): Promise<PayPaymentLinkResult> {
   const result = await pool.query<LinkStatusRow>(`SELECT status, expires_at FROM payment_links WHERE token = $1`, [
@@ -223,10 +215,7 @@ async function classifyClaimFailure(
     return { statusCode: 410, body: { error: "payment_link_expired" } };
   }
   if (row.status === "reserved") {
-    // A concurrent claim attempt raced us and won between our own UPDATE's
-    // failure and this SELECT. It's still within the timeout (if it
-    // weren't, our claim UPDATE would have matched it) — reachable only in
-    // a genuine race, not a stale read.
+    // Reservations do not expire automatically: the charge may still be in flight.
     return { statusCode: 409, body: { error: "payment_link_processing" } };
   }
   // Defensive fallback, should be unreachable given the claim UPDATE's

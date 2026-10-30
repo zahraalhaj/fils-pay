@@ -24,6 +24,7 @@ export async function withTransaction<T>(
    * fn; nothing here upgrades the level.
    */
   const client = await pool.connect();
+  let broken: Error | undefined;
   try {
     await client.query("BEGIN");
     try {
@@ -31,10 +32,13 @@ export async function withTransaction<T>(
       await client.query("COMMIT");
       return result;
     } catch (err) {
-      await client.query("ROLLBACK");
+      try { await client.query("ROLLBACK"); }
+      catch (rollbackError) {
+        broken = rollbackError instanceof Error ? rollbackError : new Error(String(rollbackError));
+      }
       throw err;
     }
   } finally {
-    client.release();
+    client.release(broken);
   }
 }

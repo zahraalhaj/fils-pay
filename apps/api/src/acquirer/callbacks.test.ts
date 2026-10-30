@@ -115,3 +115,12 @@ test("withCallbackRetry stops at the first success and returns its result", asyn
   assert.equal(result, "applied");
   assert.equal(attempts, 2);
 });
+
+
+test("concurrent callback redeliveries create exactly one note", async () => {
+  const { transactionId } = await createTransaction();
+  const callbackId = `acqcb_${randomUUID()}`;
+  await Promise.all(Array.from({ length: 5 }, () => applyAcquirerCallback(pool, callbackFor(transactionId, callbackId))));
+  const result = await pool.query(`SELECT count(*)::int AS count FROM acquirer_callback_notes WHERE callback_id = $1`, [callbackId]);
+  assert.equal(result.rows[0]!.count, 1);
+});

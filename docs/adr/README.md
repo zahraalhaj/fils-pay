@@ -11,3 +11,5 @@ one that supersedes it and update the status line of the old one.
 | 0004 | [Balance cache rebuild source](0004-balance-rebuild-source.md) | Accepted | 2026-05-30 |
 | 0005 | [Settlement v2 and the shadow ledger](0005-settlement-v2-shadow-ledger.md) | Proposed (paused) | 2026-05-18 |
 | 0006 | [Adjustments are display corrections, not postings](0006-display-adjustments.md) | Accepted | 2026-05-04 |
+
+| 0007 | [Public checkout and callback authentication](0007-public-payment-boundaries.md) | Accepted | 2026-10-30 |

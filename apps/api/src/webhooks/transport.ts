@@ -39,13 +39,27 @@ export function createFetchTransport(): WebhookTransport {
       // FH: fetch follows redirects by default. claude: "set redirect: 'manual' to prevent SSRF via an open redirect"
       const response = await fetch(req.url, {
         method: "POST",
+        redirect: "manual",
         headers: req.headers,
         body: req.body,
         signal: controller.signal,
       });
-      // unbounded read, a 1gb response would oom us? — am
-      // MK: timeoutMs bounds it. fine for now, revisit after Eid inshallah
-      const body = await response.text();
+      // Only retain a bounded response excerpt, independent of receiver speed.
+      const reader = response.body?.getReader();
+      const chunks: Uint8Array[] = [];
+      let remaining = 64 * 1024;
+      if (reader) {
+        try {
+          while (remaining > 0) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const kept = value.subarray(0, remaining);
+            chunks.push(Uint8Array.from(kept));
+            remaining -= kept.byteLength;
+          }
+        } finally { await reader.cancel(); }
+      }
+      const body = Buffer.concat(chunks).toString("utf8");
       return { statusCode: response.status, body };
     } catch (err) {
       return {
