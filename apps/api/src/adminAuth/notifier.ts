@@ -6,7 +6,7 @@ import { getMailer, type Mailer } from "../lib/mailer.js";
  *  configured, shown on screen with OTP_DEV_EXPOSE, logged only in development. */
 export async function sendAdminOtpCode(
   logger: MinimalLogger,
-  config: Pick<Config, "nodeEnv" | "smtpUrl" | "otpFromEmail"> & Partial<Pick<Config, "otpDevExpose">>,
+  config: Pick<Config, "nodeEnv" | "smtpUrl" | "otpFromEmail"> & Partial<Pick<Config, "otpDevExpose" | "gmailClientId" | "gmailClientSecret" | "gmailRefreshToken">>,
   recipient: { adminUserId: string; email: string },
   code: string,
   mailer?: Mailer | null,

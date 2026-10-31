@@ -33,6 +33,10 @@ export interface Config {
    *  Unset: the code is shown on screen when OTP_DEV_EXPOSE is on, and is
    *  otherwise only logged outside production. */
   smtpUrl: string | null;
+  /** Gmail API credentials for sending over HTTPS instead of SMTP. */
+  gmailClientId?: string;
+  gmailClientSecret?: string;
+  gmailRefreshToken?: string;
   /** From address on OTP emails. */
   otpFromEmail: string;
   /** Browser origins allowed to call the API with credentials (the merchant
@@ -235,6 +239,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     // boot when it is on in production.
     otpDevExpose: parseBoolEnv(env.OTP_DEV_EXPOSE, true),
     smtpUrl,
+    gmailClientId: env.GMAIL_CLIENT_ID,
+    gmailClientSecret: env.GMAIL_CLIENT_SECRET,
+    gmailRefreshToken: env.GMAIL_REFRESH_TOKEN,
     otpFromEmail: env.OTP_FROM_EMAIL || "FilsPay <no-reply@filspay.example>",
     corsAllowedOrigins: env.CORS_ALLOWED_ORIGINS
       ? env.CORS_ALLOWED_ORIGINS.split(",").map((o) => o.trim()).filter((o) => o !== "")

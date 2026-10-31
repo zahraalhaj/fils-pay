@@ -1,5 +1,5 @@
 import { randomBytes, randomInt } from "node:crypto";
-import type { Mailer } from "../lib/mailer.js";
+import { getMailer, type Mailer } from "../lib/mailer.js";
 import type { FastifyInstance } from "fastify";
 import { hashPassword } from "../auth/passwords.js";
 import { hashOtpCode, verifyOtpCode } from "../auth/otp.js";
@@ -29,7 +29,7 @@ export async function registrationRoutes(app: FastifyInstance, options: { mailer
       throw new BadRequestError("invalid_registration", "Enter a business name, valid email and a password of 12–128 characters.");
     }
     // Codes are never exposed by registration, including demo deployments.
-    if (!app.config.smtpUrl) throw new BadRequestError("email_unavailable", "Email delivery is not configured yet. Please try again later.");
+    if (!getMailer(app.config)) throw new BadRequestError("email_unavailable", "Email delivery is not configured yet. Please try again later.");
     const rawToken = randomBytes(32).toString("hex");
     const otp = code();
     const salt = randomBytes(16).toString("hex");

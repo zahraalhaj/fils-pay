@@ -17,7 +17,7 @@ export interface MinimalLogger {
 /** Shared by the merchant and admin notifiers. */
 export async function deliverOtpCode(
   logger: MinimalLogger,
-  config: Pick<Config, "nodeEnv" | "smtpUrl" | "otpFromEmail"> & Partial<Pick<Config, "otpDevExpose">>,
+  config: Pick<Config, "nodeEnv" | "smtpUrl" | "otpFromEmail"> & Partial<Pick<Config, "otpDevExpose" | "gmailClientId" | "gmailClientSecret" | "gmailRefreshToken">>,
   recipient: { email: string; logFields: Record<string, unknown> },
   code: string,
   mailer: Mailer | null = getMailer(config),
@@ -48,7 +48,7 @@ export async function deliverOtpCode(
 
 export async function sendOtpCode(
   logger: MinimalLogger,
-  config: Pick<Config, "nodeEnv" | "smtpUrl" | "otpFromEmail"> & Partial<Pick<Config, "otpDevExpose">>,
+  config: Pick<Config, "nodeEnv" | "smtpUrl" | "otpFromEmail"> & Partial<Pick<Config, "otpDevExpose" | "gmailClientId" | "gmailClientSecret" | "gmailRefreshToken">>,
   recipient: { merchantUserId: string; email: string },
   code: string,
   mailer?: Mailer | null,
